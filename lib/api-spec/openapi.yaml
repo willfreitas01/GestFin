@@ -3,13 +3,21 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: FinControl API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: transactions
+    description: Financial transaction operations
+  - name: dashboard
+    description: Dashboard summary operations
+  - name: reports
+    description: Monthly report operations
 paths:
   /healthz:
     get:
@@ -24,6 +32,353 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Username already taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /auth/recover/question:
+    post:
+      operationId: getSecurityQuestion
+      tags: [auth]
+      summary: Get security question for password recovery step 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecoverStep1Input"
+      responses:
+        "200":
+          description: Security question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityQuestion"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /auth/recover/verify:
+    post:
+      operationId: verifySecurityAnswer
+      tags: [auth]
+      summary: Verify security answer and get temporary password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecoverStep2Input"
+      responses:
+        "200":
+          description: Temporary password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TempPassword"
+        "401":
+          description: Wrong answer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /transactions:
+    get:
+      operationId: listTransactions
+      tags: [transactions]
+      summary: List all transactions for the current user
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [venda, material, funcionarios, outro]
+        - name: month
+          in: query
+          description: "YYYY-MM format"
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        "200":
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    post:
+      operationId: createTransaction
+      tags: [transactions]
+      summary: Create a new transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionInput"
+      responses:
+        "201":
+          description: Created transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /transactions/{id}:
+    delete:
+      operationId: deleteTransaction
+      tags: [transactions]
+      summary: Delete a transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessMessage"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get current month KPI summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /dashboard/weekly:
+    get:
+      operationId: getWeeklyChart
+      tags: [dashboard]
+      summary: Get last 7 days income vs expenses for bar chart
+      responses:
+        "200":
+          description: Weekly chart data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DayTotal"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /dashboard/by-category:
+    get:
+      operationId: getByCategoryChart
+      tags: [dashboard]
+      summary: Get totals by category for donut chart
+      responses:
+        "200":
+          description: Category breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryTotal"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /dashboard/recent:
+    get:
+      operationId: getRecentTransactions
+      tags: [dashboard]
+      summary: Get the 10 most recent transactions
+      responses:
+        "200":
+          description: Recent transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /reports/monthly:
+    get:
+      operationId: getMonthlyReport
+      tags: [reports]
+      summary: Get full monthly report
+      parameters:
+        - name: month
+          in: query
+          required: true
+          description: "YYYY-MM format"
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Monthly report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyReport"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /reports/months:
+    get:
+      operationId: listAvailableMonths
+      tags: [reports]
+      summary: List all months that have transactions
+      responses:
+        "200":
+          description: Available months
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +389,226 @@ components:
       required:
         - status
 
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    SuccessMessage:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+      required:
+        - id
+        - username
+
+    RegisterInput:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 3
+        password:
+          type: string
+          minLength: 6
+        securityQuestion:
+          type: string
+          enum: [pet, escola, cidade, mae]
+        securityAnswer:
+          type: string
+          minLength: 1
+      required:
+        - username
+        - password
+        - securityQuestion
+        - securityAnswer
+
+    LoginInput:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - username
+        - password
+
+    RecoverStep1Input:
+      type: object
+      properties:
+        username:
+          type: string
+      required:
+        - username
+
+    SecurityQuestion:
+      type: object
+      properties:
+        question:
+          type: string
+        questionKey:
+          type: string
+      required:
+        - question
+        - questionKey
+
+    RecoverStep2Input:
+      type: object
+      properties:
+        username:
+          type: string
+        answer:
+          type: string
+      required:
+        - username
+        - answer
+
+    TempPassword:
+      type: object
+      properties:
+        tempPassword:
+          type: string
+      required:
+        - tempPassword
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+          description: "YYYY-MM-DD"
+        category:
+          type: string
+          enum: [venda, material, funcionarios, outro]
+        description:
+          type: string
+        amount:
+          type: number
+        createdAt:
+          type: string
+      required:
+        - id
+        - date
+        - category
+        - description
+        - amount
+        - createdAt
+
+    TransactionInput:
+      type: object
+      properties:
+        date:
+          type: string
+          description: "YYYY-MM-DD"
+        category:
+          type: string
+          enum: [venda, material, funcionarios, outro]
+        description:
+          type: string
+        amount:
+          type: number
+          minimum: 0.01
+      required:
+        - date
+        - category
+        - description
+        - amount
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalIncome:
+          type: number
+        totalExpenses:
+          type: number
+        balance:
+          type: number
+        savingsRate:
+          type: number
+          description: "Percentage 0-100"
+        transactionCount:
+          type: integer
+        month:
+          type: string
+      required:
+        - totalIncome
+        - totalExpenses
+        - balance
+        - savingsRate
+        - transactionCount
+        - month
+
+    DayTotal:
+      type: object
+      properties:
+        date:
+          type: string
+        income:
+          type: number
+        expenses:
+          type: number
+      required:
+        - date
+        - income
+        - expenses
+
+    CategoryTotal:
+      type: object
+      properties:
+        category:
+          type: string
+        label:
+          type: string
+        total:
+          type: number
+        percentage:
+          type: number
+      required:
+        - category
+        - label
+        - total
+        - percentage
+
+    MonthlyReport:
+      type: object
+      properties:
+        month:
+          type: string
+        totalIncome:
+          type: number
+        totalExpenses:
+          type: number
+        balance:
+          type: number
+        byCategory:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryTotal"
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+      required:
+        - month
+        - totalIncome
+        - totalExpenses
+        - balance
+        - byCategory
+        - transactions
