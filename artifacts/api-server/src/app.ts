@@ -2,6 +2,8 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import session from "express-session";
+import pgSession from "connect-pg-simple";
+import { pool } from "@workspace/db";
 import router from "./routes";
 import { logger } from "./lib/logger";
 const app: Express = express();
@@ -41,8 +43,14 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const sessionSecret = process.env.SESSION_SECRET ?? "fincontrol-dev-secret";
+const PgSessionStore = pgSession(session);
 app.use(
   session({
+    store: new PgSessionStore({
+      pool,
+      tableName: "session",
+      createTableIfMissing: true,
+    }),
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
