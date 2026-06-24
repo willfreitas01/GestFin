@@ -12,7 +12,9 @@ export default function Dashboard() {
   const { data: categoryChart, isLoading: isLoadingCategory } = useGetByCategoryChart();
   const { data: recentTransactions, isLoading: isLoadingRecent } = useGetRecentTransactions();
 
-  if (isLoadingSummary || isLoadingWeekly || isLoadingCategory || isLoadingRecent) {
+  const isLoading = isLoadingSummary || isLoadingWeekly || isLoadingCategory || isLoadingRecent;
+
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>

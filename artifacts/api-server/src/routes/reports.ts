@@ -25,8 +25,11 @@ router.get("/reports/monthly", requireAuth, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const { month } = parsed.data;
   const [year, mon] = month.split("-");
+  const yearNum = parseInt(year);
+  const monNum = parseInt(mon);
   const startDate = `${year}-${mon}-01`;
-  const endDate = `${year}-${mon}-31`;
+  const d = new Date(yearNum, monNum, 0);
+  const endDate = `${year}-${mon}-${String(d.getDate()).padStart(2, "0")}`;
 
   const rows = await db
     .select()

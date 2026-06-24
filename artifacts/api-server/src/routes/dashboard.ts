@@ -15,14 +15,21 @@ const CAT_LABELS: Record<string, string> = {
   outro: "Outras Despesas",
 };
 
+function lastDayOfMonth(year: number, month: number): string {
+  // new Date(year, month, 0) gives the last day of the given 1-based month
+  const d = new Date(year, month, 0);
+  return `${year}-${String(month).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function currentMonth(): { startDate: string; endDate: string; month: string } {
   const now = new Date();
   const year = now.getFullYear();
-  const mon = String(now.getMonth() + 1).padStart(2, "0");
+  const monNum = now.getMonth() + 1;
+  const mon = String(monNum).padStart(2, "0");
   return {
     month: `${year}-${mon}`,
     startDate: `${year}-${mon}-01`,
-    endDate: `${year}-${mon}-31`,
+    endDate: lastDayOfMonth(year, monNum),
   };
 }
 
