@@ -44,12 +44,33 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const sessionSecret = process.env.SESSION_SECRET ?? "fincontrol-dev-secret";
 const PgSessionStore = pgSession(session);
+
+// connect-pg-simple's createTableIfMissing reads an external table.sql file
+// that doesn't get copied into dist/ by esbuild's bundling, so we create the
+// table ourselves on startup instead. Safe to run on every boot (idempotent).
+// We await this before registering the session middleware so no request can
+// reach it before the table exists.
+async function ensureSessionTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "session" (
+      "sid" varchar NOT NULL COLLATE "default",
+      "sess" json NOT NULL,
+      "expire" timestamp(6) NOT NULL,
+      CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE
+    );
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+  `);
+}
+await ensureSessionTable();
+
 app.use(
   session({
     store: new PgSessionStore({
       pool,
       tableName: "session",
-      createTableIfMissing: true,
+      createTableIfMissing: false,
     }),
     secret: sessionSecret,
     resave: false,
