@@ -63,7 +63,30 @@ async function ensureSessionTable(): Promise<void> {
     CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
   `);
 }
+
+// Tabela de relatórios mensais "fechados" (snapshot congelado). Criada aqui
+// pelo mesmo motivo da tabela de sessão: o drizzle-kit push não roda
+// automaticamente no deploy, então garantimos a existência da tabela no boot.
+async function ensureMonthlyReportsTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "monthly_reports" (
+      "id" serial PRIMARY KEY,
+      "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "month" text NOT NULL,
+      "total_income" numeric(12,2) NOT NULL,
+      "total_expenses" numeric(12,2) NOT NULL,
+      "balance" numeric(12,2) NOT NULL,
+      "savings_rate" integer NOT NULL,
+      "transaction_count" integer NOT NULL,
+      "by_category" text NOT NULL,
+      "closed_at" timestamp NOT NULL DEFAULT now(),
+      CONSTRAINT "monthly_reports_user_month_unique" UNIQUE ("user_id", "month")
+    );
+  `);
+}
+
 await ensureSessionTable();
+await ensureMonthlyReportsTable();
 
 app.use(
   session({

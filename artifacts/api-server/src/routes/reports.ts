@@ -1,13 +1,13 @@
 import { Router } from "express";
-import { db, transactionsTable } from "@workspace/db";
+import { db, transactionsTable, monthlyReportsTable } from "@workspace/db";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
-import { GetMonthlyReportQueryParams } from "@workspace/api-zod";
-
+import {
+  GetMonthlyReportQueryParams,
+  CloseMonthlyReportBody,
+} from "@workspace/api-zod";
 const router = Router();
-
 const INCOME_CATEGORIES = ["venda"];
-
 const CAT_LABELS: Record<string, string> = {
   venda: "Receita Operacional",
   material: "Insumos",
@@ -15,22 +15,25 @@ const CAT_LABELS: Record<string, string> = {
   outro: "Outras Despesas",
 };
 
-router.get("/reports/monthly", requireAuth, async (req, res): Promise<void> => {
-  const parsed = GetMonthlyReportQueryParams.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Parâmetros inválidos. Use month=YYYY-MM." });
-    return;
-  }
+type ByCategoryEntry = {
+  category: string;
+  label: string;
+  total: number;
+  percentage: number;
+};
 
-  const userId = req.session.userId!;
-  const { month } = parsed.data;
+function monthBounds(month: string): { startDate: string; endDate: string } {
   const [year, mon] = month.split("-");
-  const yearNum = parseInt(year);
-  const monNum = parseInt(mon);
+  const yearNum = parseInt(year, 10);
+  const monNum = parseInt(mon, 10);
   const startDate = `${year}-${mon}-01`;
   const d = new Date(yearNum, monNum, 0);
   const endDate = `${year}-${mon}-${String(d.getDate()).padStart(2, "0")}`;
+  return { startDate, endDate };
+}
 
+async function computeMonthlyReport(userId: number, month: string) {
+  const { startDate, endDate } = monthBounds(month);
   const rows = await db
     .select()
     .from(transactionsTable)
@@ -67,26 +70,75 @@ router.get("/reports/monthly", requireAuth, async (req, res): Promise<void> => {
     };
   });
 
-  const byCategoryArr = Object.entries(byCategory).map(([category, total]) => ({
-    category,
-    label: CAT_LABELS[category] ?? category,
-    total,
-    percentage: grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0,
-  }));
+  const byCategoryArr: ByCategoryEntry[] = Object.entries(byCategory).map(
+    ([category, total]) => ({
+      category,
+      label: CAT_LABELS[category] ?? category,
+      total,
+      percentage: grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0,
+    }),
+  );
 
-  res.json({
-    month,
+  const balance = totalIncome - totalExpenses;
+  const savingsRate =
+    totalIncome > 0 ? Math.round((balance / totalIncome) * 100) : 0;
+
+  return {
     totalIncome,
     totalExpenses,
-    balance: totalIncome - totalExpenses,
+    balance,
+    savingsRate,
+    transactionCount: transactions.length,
     byCategory: byCategoryArr,
     transactions,
-  });
+  };
+}
+
+router.get("/reports/monthly", requireAuth, async (req, res): Promise<void> => {
+  const parsed = GetMonthlyReportQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Parâmetros inválidos. Use month=YYYY-MM." });
+    return;
+  }
+  const userId = req.session.userId!;
+  const { month } = parsed.data;
+
+  // Se o mês já foi fechado, devolve o snapshot congelado em vez de recalcular.
+  const [closed] = await db
+    .select()
+    .from(monthlyReportsTable)
+    .where(
+      and(
+        eq(monthlyReportsTable.userId, userId),
+        eq(monthlyReportsTable.month, month),
+      ),
+    )
+    .limit(1);
+
+  if (closed) {
+    res.json({
+      month,
+      closed: true,
+      closedAt: closed.closedAt.toISOString(),
+      totalIncome: parseFloat(String(closed.totalIncome)),
+      totalExpenses: parseFloat(String(closed.totalExpenses)),
+      balance: parseFloat(String(closed.balance)),
+      savingsRate: closed.savingsRate,
+      transactionCount: closed.transactionCount,
+      byCategory: JSON.parse(closed.byCategory) as ByCategoryEntry[],
+      // Lançamentos individuais não ficam congelados, apenas os totais.
+      // Ainda mostramos os lançamentos atuais do período como referência.
+      transactions: (await computeMonthlyReport(userId, month)).transactions,
+    });
+    return;
+  }
+
+  const report = await computeMonthlyReport(userId, month);
+  res.json({ month, closed: false, ...report });
 });
 
 router.get("/reports/months", requireAuth, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
-
   const rows = await db
     .selectDistinct({
       month: sql<string>`to_char(${transactionsTable.date}::date, 'YYYY-MM')`,
@@ -94,9 +146,90 @@ router.get("/reports/months", requireAuth, async (req, res): Promise<void> => {
     .from(transactionsTable)
     .where(eq(transactionsTable.userId, userId))
     .orderBy(sql`1 DESC`);
-
   const months = rows.map((r) => r.month);
   res.json(months);
 });
+
+// Lista os meses já fechados (snapshot congelado) deste usuário.
+router.get(
+  "/reports/monthly/closed",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const userId = req.session.userId!;
+    const rows = await db
+      .select({
+        month: monthlyReportsTable.month,
+        closedAt: monthlyReportsTable.closedAt,
+      })
+      .from(monthlyReportsTable)
+      .where(eq(monthlyReportsTable.userId, userId))
+      .orderBy(desc(monthlyReportsTable.month));
+    res.json(
+      rows.map((r) => ({ month: r.month, closedAt: r.closedAt.toISOString() })),
+    );
+  },
+);
+
+// Fecha (congela) o relatório de um mês. Depois de fechado, os totais não
+// mudam mais, mesmo que lançamentos daquele mês sejam editados ou excluídos.
+router.post(
+  "/reports/monthly/close",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const parsed = CloseMonthlyReportBody.safeParse(req.body);
+    if (!parsed.success) {
+      res
+        .status(400)
+        .json({ error: "Parâmetros inválidos. Envie { month: 'YYYY-MM' }." });
+      return;
+    }
+    const userId = req.session.userId!;
+    const { month } = parsed.data;
+
+    const [existing] = await db
+      .select({ id: monthlyReportsTable.id })
+      .from(monthlyReportsTable)
+      .where(
+        and(
+          eq(monthlyReportsTable.userId, userId),
+          eq(monthlyReportsTable.month, month),
+        ),
+      )
+      .limit(1);
+
+    if (existing) {
+      res.status(409).json({ error: "Este mês já foi fechado anteriormente." });
+      return;
+    }
+
+    const report = await computeMonthlyReport(userId, month);
+
+    const [saved] = await db
+      .insert(monthlyReportsTable)
+      .values({
+        userId,
+        month,
+        totalIncome: String(report.totalIncome),
+        totalExpenses: String(report.totalExpenses),
+        balance: String(report.balance),
+        savingsRate: report.savingsRate,
+        transactionCount: report.transactionCount,
+        byCategory: JSON.stringify(report.byCategory),
+      })
+      .returning();
+
+    res.status(201).json({
+      month: saved.month,
+      closed: true,
+      closedAt: saved.closedAt.toISOString(),
+      totalIncome: parseFloat(String(saved.totalIncome)),
+      totalExpenses: parseFloat(String(saved.totalExpenses)),
+      balance: parseFloat(String(saved.balance)),
+      savingsRate: saved.savingsRate,
+      transactionCount: saved.transactionCount,
+      byCategory: JSON.parse(saved.byCategory) as ByCategoryEntry[],
+    });
+  },
+);
 
 export default router;
