@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, transactionsTable, categoriesTable } from "@workspace/db";
+import { db, transactionsTable } from "@workspace/db";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -32,35 +32,12 @@ function last7Days(): string[] {
   return days;
 }
 
-// Busca mapa de categorias do usuário: nome -> tipo (income/expense)
-async function getCategoryTypeMap(
-  userId: number,
-): Promise<Record<string, string>> {
-  const cats = await db
-    .select()
-    .from(categoriesTable)
-    .where(eq(categoriesTable.userId, userId));
-  const map: Record<string, string> = {};
-  for (const c of cats) {
-    map[c.name] = c.type;
-  }
-  return map;
-}
-
-function isIncome(category: string, typeMap: Record<string, string>): boolean {
-  // Verifica pelo mapa de categorias do usuário
-  if (typeMap[category]) return typeMap[category] === "income";
-  // Fallback para categorias antigas fixas
-  return category === "venda";
-}
-
 router.get(
   "/dashboard/summary",
   requireAuth,
   async (req, res): Promise<void> => {
     const userId = req.session.userId!;
     const { startDate, endDate, month } = currentMonth();
-    const typeMap = await getCategoryTypeMap(userId);
 
     const rows = await db
       .select()
@@ -78,17 +55,13 @@ router.get(
 
     for (const row of rows) {
       const amount = parseFloat(String(row.amount));
-      if (isIncome(row.category, typeMap)) {
-        totalIncome += amount;
-      } else {
-        totalExpenses += amount;
-      }
+      if (row.type === "income") totalIncome += amount;
+      else totalExpenses += amount;
     }
 
     const balance = totalIncome - totalExpenses;
     const savingsRate =
       totalIncome > 0 ? Math.round((balance / totalIncome) * 100) : 0;
-
     res.json({
       totalIncome,
       totalExpenses,
@@ -106,7 +79,6 @@ router.get(
   async (req, res): Promise<void> => {
     const userId = req.session.userId!;
     const days = last7Days();
-    const typeMap = await getCategoryTypeMap(userId);
 
     const rows = await db
       .select()
@@ -126,11 +98,8 @@ router.get(
       const d = row.date;
       if (byDate[d]) {
         const amount = parseFloat(String(row.amount));
-        if (isIncome(row.category, typeMap)) {
-          byDate[d].income += amount;
-        } else {
-          byDate[d].expenses += amount;
-        }
+        if (row.type === "income") byDate[d].income += amount;
+        else byDate[d].expenses += amount;
       }
     }
 
@@ -171,14 +140,14 @@ router.get(
       grandTotal += amount;
     }
 
-    const result = Object.entries(byCategory).map(([category, total]) => ({
-      category,
-      label: category,
-      total,
-      percentage: grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0,
-    }));
-
-    res.json(result);
+    res.json(
+      Object.entries(byCategory).map(([category, total]) => ({
+        category,
+        label: category,
+        total,
+        percentage: grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0,
+      })),
+    );
   },
 );
 
@@ -187,7 +156,6 @@ router.get(
   requireAuth,
   async (req, res): Promise<void> => {
     const userId = req.session.userId!;
-
     const rows = await db
       .select()
       .from(transactionsTable)
@@ -200,6 +168,7 @@ router.get(
         id: t.id,
         date: t.date,
         category: t.category,
+        type: t.type,
         description: t.description,
         amount: parseFloat(String(t.amount)),
         createdAt: t.createdAt.toISOString(),

@@ -1,10 +1,5 @@
 import { Router } from "express";
-import {
-  db,
-  transactionsTable,
-  monthlyReportsTable,
-  categoriesTable,
-} from "@workspace/db";
+import { db, transactionsTable, monthlyReportsTable } from "@workspace/db";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import {
@@ -23,35 +18,15 @@ type ByCategoryEntry = {
 
 function monthBounds(month: string): { startDate: string; endDate: string } {
   const [year, mon] = month.split("-");
-  const yearNum = parseInt(year, 10);
-  const monNum = parseInt(mon, 10);
-  const startDate = `${year}-${mon}-01`;
-  const d = new Date(yearNum, monNum, 0);
-  const endDate = `${year}-${mon}-${String(d.getDate()).padStart(2, "0")}`;
-  return { startDate, endDate };
-}
-
-async function getCategoryTypeMap(
-  userId: number,
-): Promise<Record<string, string>> {
-  const cats = await db
-    .select()
-    .from(categoriesTable)
-    .where(eq(categoriesTable.userId, userId));
-  const map: Record<string, string> = {};
-  for (const c of cats) map[c.name] = c.type;
-  return map;
-}
-
-function isIncome(category: string, typeMap: Record<string, string>): boolean {
-  if (typeMap[category]) return typeMap[category] === "income";
-  return category === "venda";
+  const d = new Date(parseInt(year), parseInt(mon), 0);
+  return {
+    startDate: `${year}-${mon}-01`,
+    endDate: `${year}-${mon}-${String(d.getDate()).padStart(2, "0")}`,
+  };
 }
 
 async function computeMonthlyReport(userId: number, month: string) {
   const { startDate, endDate } = monthBounds(month);
-  const typeMap = await getCategoryTypeMap(userId);
-
   const rows = await db
     .select()
     .from(transactionsTable)
@@ -71,17 +46,15 @@ async function computeMonthlyReport(userId: number, month: string) {
 
   const transactions = rows.map((t) => {
     const amount = parseFloat(String(t.amount));
-    if (isIncome(t.category, typeMap)) {
-      totalIncome += amount;
-    } else {
-      totalExpenses += amount;
-    }
+    if (t.type === "income") totalIncome += amount;
+    else totalExpenses += amount;
     byCategory[t.category] = (byCategory[t.category] ?? 0) + amount;
     grandTotal += amount;
     return {
       id: t.id,
       date: t.date,
       category: t.category,
+      type: t.type,
       description: t.description,
       amount,
       createdAt: t.createdAt.toISOString(),
@@ -100,7 +73,6 @@ async function computeMonthlyReport(userId: number, month: string) {
   const balance = totalIncome - totalExpenses;
   const savingsRate =
     totalIncome > 0 ? Math.round((balance / totalIncome) * 100) : 0;
-
   return {
     totalIncome,
     totalExpenses,
@@ -207,7 +179,6 @@ router.post(
         ),
       )
       .limit(1);
-
     if (existing) {
       res.status(409).json({ error: "Este mês já foi fechado anteriormente." });
       return;

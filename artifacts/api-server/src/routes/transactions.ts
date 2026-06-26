@@ -1,90 +1,115 @@
 import { Router } from "express";
-import { db, transactionsTable } from "@workspace/db";
+import { db, transactionsTable, categoriesTable } from "@workspace/db";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
-import {
-  ListTransactionsQueryParams,
-  CreateTransactionBody,
-  DeleteTransactionParams,
-} from "@workspace/api-zod";
+
 const router = Router();
 
 function lastDayOfMonth(year: number, month: number): string {
-  // new Date(year, month, 0) gives the last day of the given 1-based month
   const d = new Date(year, month, 0);
   return `${year}-${String(month).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// Busca o tipo da categoria pelo nome
+async function getCategoryType(
+  userId: number,
+  categoryName: string,
+): Promise<string> {
+  const [cat] = await db
+    .select()
+    .from(categoriesTable)
+    .where(
+      and(
+        eq(categoriesTable.userId, userId),
+        eq(categoriesTable.name, categoryName),
+      ),
+    )
+    .limit(1);
+  if (cat) return cat.type;
+  // Fallback para categorias antigas
+  if (categoryName === "venda") return "income";
+  return "expense";
+}
+
 router.get("/transactions", requireAuth, async (req, res): Promise<void> => {
-  const parsed = ListTransactionsQueryParams.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Parâmetros inválidos." });
-    return;
-  }
   const userId = req.session.userId!;
-  const { category, month, limit = 100 } = parsed.data;
+  const {
+    category,
+    month,
+    limit = 100,
+  } = req.query as { category?: string; month?: string; limit?: number };
+
   const conditions = [eq(transactionsTable.userId, userId)];
-  if (category) {
-    conditions.push(eq(transactionsTable.category, category));
-  }
+  if (category) conditions.push(eq(transactionsTable.category, category));
   if (month) {
-    const [year, mon] = month.split("-");
-    const startDate = `${year}-${mon}-01`;
-    const endDate = lastDayOfMonth(parseInt(year, 10), parseInt(mon, 10));
-    conditions.push(gte(transactionsTable.date, startDate));
-    conditions.push(lte(transactionsTable.date, endDate));
+    const [year, mon] = String(month).split("-");
+    conditions.push(gte(transactionsTable.date, `${year}-${mon}-01`));
+    conditions.push(
+      lte(
+        transactionsTable.date,
+        lastDayOfMonth(parseInt(year), parseInt(mon)),
+      ),
+    );
   }
+
   const rows = await db
     .select()
     .from(transactionsTable)
     .where(and(...conditions))
     .orderBy(desc(transactionsTable.date), desc(transactionsTable.createdAt))
-    .limit(limit);
-  const result = rows.map((t) => ({
-    id: t.id,
-    date: t.date,
-    category: t.category,
-    description: t.description,
-    amount: parseFloat(String(t.amount)),
-    createdAt: t.createdAt.toISOString(),
-  }));
-  res.json(result);
+    .limit(Number(limit) || 100);
+
+  res.json(
+    rows.map((t) => ({
+      id: t.id,
+      date: t.date,
+      category: t.category,
+      type: t.type,
+      description: t.description,
+      amount: parseFloat(String(t.amount)),
+      createdAt: t.createdAt.toISOString(),
+    })),
+  );
 });
+
 router.post("/transactions", requireAuth, async (req, res): Promise<void> => {
-  const parsed = CreateTransactionBody.safeParse(req.body);
-  if (!parsed.success) {
+  const { date, category, description, amount } = req.body;
+  if (!date || !category || !description || !amount) {
     res.status(400).json({ error: "Dados inválidos." });
     return;
   }
   const userId = req.session.userId!;
-  const { date, category, description, amount } = parsed.data;
+  const type = await getCategoryType(userId, category);
+
   const [row] = await db
     .insert(transactionsTable)
     .values({
       userId,
       date,
       category,
+      type,
       description,
       amount: String(amount),
     })
     .returning();
+
   res.status(201).json({
     id: row.id,
     date: row.date,
     category: row.category,
+    type: row.type,
     description: row.description,
     amount: parseFloat(String(row.amount)),
     createdAt: row.createdAt.toISOString(),
   });
 });
+
 router.delete(
   "/transactions/:id",
   requireAuth,
   async (req, res): Promise<void> => {
-    const parsed = DeleteTransactionParams.safeParse({
-      id: parseInt(req.params.id as string),
-    });
-    if (!parsed.success) {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
       res.status(400).json({ error: "ID inválido." });
       return;
     }
@@ -92,10 +117,7 @@ router.delete(
     const deleted = await db
       .delete(transactionsTable)
       .where(
-        and(
-          eq(transactionsTable.id, parsed.data.id),
-          eq(transactionsTable.userId, userId),
-        ),
+        and(eq(transactionsTable.id, id), eq(transactionsTable.userId, userId)),
       )
       .returning({ id: transactionsTable.id });
     if (deleted.length === 0) {
@@ -105,4 +127,5 @@ router.delete(
     res.json({ message: "Lançamento excluído com sucesso." });
   },
 );
+
 export default router;
