@@ -5,7 +5,14 @@ import { requireAuth } from "../middlewares/requireAuth";
 
 const router = Router();
 
-// Listar categorias do usuário
+const DEFAULT_CATEGORIES = [
+  { name: "Receita Operacional", type: "income", color: "#1a5c2a" },
+  { name: "Insumos", type: "expense", color: "#854F0B" },
+  { name: "Folha de Pagamento", type: "expense", color: "#A32D2D" },
+  { name: "Outras Despesas", type: "expense", color: "#534AB7" },
+];
+
+// Listar categorias do usuário — cria as padrão se não tiver nenhuma
 router.get("/categories", requireAuth, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const rows = await db
@@ -13,6 +20,25 @@ router.get("/categories", requireAuth, async (req, res): Promise<void> => {
     .from(categoriesTable)
     .where(eq(categoriesTable.userId, userId))
     .orderBy(categoriesTable.name);
+
+  // Se não tem nenhuma, cria as padrão automaticamente
+  if (rows.length === 0) {
+    const created = await db
+      .insert(categoriesTable)
+      .values(DEFAULT_CATEGORIES.map((c) => ({ ...c, userId })))
+      .returning();
+    res.json(
+      created.map((c) => ({
+        id: c.id,
+        name: c.name,
+        type: c.type,
+        color: c.color,
+        createdAt: c.createdAt.toISOString(),
+      })),
+    );
+    return;
+  }
+
   res.json(
     rows.map((c) => ({
       id: c.id,
