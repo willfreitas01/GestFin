@@ -111,10 +111,25 @@ async function ensureInventoryTables(): Promise<void> {
   `);
 }
 
+// Corrige o type das transações existentes que foram salvas antes da coluna existir
+async function fixTransactionTypes(): Promise<void> {
+  await pool.query(`
+    UPDATE "transactions" SET "type" = 'income'
+    WHERE "category" IN ('venda', 'Receita Operacional')
+    AND "type" != 'income';
+  `);
+  await pool.query(`
+    UPDATE "transactions" SET "type" = 'expense'
+    WHERE "category" IN ('material', 'funcionarios', 'outro', 'Insumos', 'Folha de Pagamento', 'Outras Despesas')
+    AND "type" != 'expense';
+  `);
+}
+
 await ensureSessionTable();
 await ensureMonthlyReportsTable();
 await ensureCategoriesTable();
 await ensureInventoryTables();
+await fixTransactionTypes();
 
 app.use(
   session({
