@@ -1,19 +1,18 @@
 import { Router } from "express";
-import { db, transactionsTable, monthlyReportsTable } from "@workspace/db";
+import {
+  db,
+  transactionsTable,
+  monthlyReportsTable,
+  categoriesTable,
+} from "@workspace/db";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import {
   GetMonthlyReportQueryParams,
   CloseMonthlyReportBody,
 } from "@workspace/api-zod";
+
 const router = Router();
-const INCOME_CATEGORIES = ["venda"];
-const CAT_LABELS: Record<string, string> = {
-  venda: "Receita Operacional",
-  material: "Insumos",
-  funcionarios: "Folha de Pagamento",
-  outro: "Outras Despesas",
-};
 
 type ByCategoryEntry = {
   category: string;
@@ -32,8 +31,27 @@ function monthBounds(month: string): { startDate: string; endDate: string } {
   return { startDate, endDate };
 }
 
+async function getCategoryTypeMap(
+  userId: number,
+): Promise<Record<string, string>> {
+  const cats = await db
+    .select()
+    .from(categoriesTable)
+    .where(eq(categoriesTable.userId, userId));
+  const map: Record<string, string> = {};
+  for (const c of cats) map[c.name] = c.type;
+  return map;
+}
+
+function isIncome(category: string, typeMap: Record<string, string>): boolean {
+  if (typeMap[category]) return typeMap[category] === "income";
+  return category === "venda";
+}
+
 async function computeMonthlyReport(userId: number, month: string) {
   const { startDate, endDate } = monthBounds(month);
+  const typeMap = await getCategoryTypeMap(userId);
+
   const rows = await db
     .select()
     .from(transactionsTable)
@@ -53,7 +71,7 @@ async function computeMonthlyReport(userId: number, month: string) {
 
   const transactions = rows.map((t) => {
     const amount = parseFloat(String(t.amount));
-    if (INCOME_CATEGORIES.includes(t.category)) {
+    if (isIncome(t.category, typeMap)) {
       totalIncome += amount;
     } else {
       totalExpenses += amount;
@@ -73,7 +91,7 @@ async function computeMonthlyReport(userId: number, month: string) {
   const byCategoryArr: ByCategoryEntry[] = Object.entries(byCategory).map(
     ([category, total]) => ({
       category,
-      label: CAT_LABELS[category] ?? category,
+      label: category,
       total,
       percentage: grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0,
     }),
@@ -103,7 +121,6 @@ router.get("/reports/monthly", requireAuth, async (req, res): Promise<void> => {
   const userId = req.session.userId!;
   const { month } = parsed.data;
 
-  // Se o mês já foi fechado, devolve o snapshot congelado em vez de recalcular.
   const [closed] = await db
     .select()
     .from(monthlyReportsTable)
@@ -126,8 +143,6 @@ router.get("/reports/monthly", requireAuth, async (req, res): Promise<void> => {
       savingsRate: closed.savingsRate,
       transactionCount: closed.transactionCount,
       byCategory: JSON.parse(closed.byCategory) as ByCategoryEntry[],
-      // Lançamentos individuais não ficam congelados, apenas os totais.
-      // Ainda mostramos os lançamentos atuais do período como referência.
       transactions: (await computeMonthlyReport(userId, month)).transactions,
     });
     return;
@@ -146,11 +161,9 @@ router.get("/reports/months", requireAuth, async (req, res): Promise<void> => {
     .from(transactionsTable)
     .where(eq(transactionsTable.userId, userId))
     .orderBy(sql`1 DESC`);
-  const months = rows.map((r) => r.month);
-  res.json(months);
+  res.json(rows.map((r) => r.month));
 });
 
-// Lista os meses já fechados (snapshot congelado) deste usuário.
 router.get(
   "/reports/monthly/closed",
   requireAuth,
@@ -170,8 +183,6 @@ router.get(
   },
 );
 
-// Fecha (congela) o relatório de um mês. Depois de fechado, os totais não
-// mudam mais, mesmo que lançamentos daquele mês sejam editados ou excluídos.
 router.post(
   "/reports/monthly/close",
   requireAuth,
@@ -203,7 +214,6 @@ router.post(
     }
 
     const report = await computeMonthlyReport(userId, month);
-
     const [saved] = await db
       .insert(monthlyReportsTable)
       .values({
