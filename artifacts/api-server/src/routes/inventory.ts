@@ -1,5 +1,10 @@
 import { Router } from "express";
-import { db, inventoryTable, inventoryMovementsTable } from "@workspace/db";
+import {
+  db,
+  inventoryTable,
+  inventoryMovementsTable,
+  transactionsTable,
+} from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -120,7 +125,7 @@ router.delete(
   },
 );
 
-// Registrar movimentação (entrada ou saída)
+// Registrar movimentação (entrada ou saída) + lançamento financeiro automático
 router.post(
   "/inventory/:id/movement",
   requireAuth,
@@ -154,13 +159,18 @@ router.post(
       res.status(400).json({ error: "Quantidade insuficiente em estoque." });
       return;
     }
+
     const newQuantity =
       type === "in" ? product.quantity + qty : product.quantity - qty;
+
+    // Atualiza o estoque
     const [updated] = await db
       .update(inventoryTable)
       .set({ quantity: newQuantity })
       .where(eq(inventoryTable.id, id))
       .returning();
+
+    // Registra a movimentação
     await db.insert(inventoryMovementsTable).values({
       inventoryId: id,
       userId,
@@ -168,6 +178,37 @@ router.post(
       quantity: qty,
       note: note ?? null,
     });
+
+    // Lança automaticamente no financeiro
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+    if (type === "in") {
+      // Entrada = despesa (custo do produto × quantidade)
+      const amount = parseFloat(String(product.costPrice)) * qty;
+      if (amount > 0) {
+        await db.insert(transactionsTable).values({
+          userId,
+          date: dateStr,
+          category: "Insumos",
+          description: `Entrada de estoque: ${product.name} (${qty} un)${note ? ` — ${note}` : ""}`,
+          amount: String(amount),
+        });
+      }
+    } else {
+      // Saída = receita (preço de venda × quantidade)
+      const amount = parseFloat(String(product.salePrice)) * qty;
+      if (amount > 0) {
+        await db.insert(transactionsTable).values({
+          userId,
+          date: dateStr,
+          category: "Receita Operacional",
+          description: `Venda de estoque: ${product.name} (${qty} un)${note ? ` — ${note}` : ""}`,
+          amount: String(amount),
+        });
+      }
+    }
+
     res.json({
       id: updated.id,
       name: updated.name,
