@@ -8,11 +8,6 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 const app: Express = express();
 
-// Necessário para que o Express reconheça corretamente que a conexão chegou
-// via HTTPS quando está atrás do proxy/load balancer do Replit. Sem isso,
-// cookies com "secure: true" não funcionam corretamente em produção e a
-// sessão não persiste entre requisições (login funciona, mas /auth/me
-// sempre retorna 401).
 app.set("trust proxy", 1);
 
 app.use(
@@ -45,11 +40,6 @@ app.use(express.urlencoded({ extended: true }));
 const sessionSecret = process.env.SESSION_SECRET ?? "fincontrol-dev-secret";
 const PgSessionStore = pgSession(session);
 
-// connect-pg-simple's createTableIfMissing reads an external table.sql file
-// that doesn't get copied into dist/ by esbuild's bundling, so we create the
-// table ourselves on startup instead. Safe to run on every boot (idempotent).
-// We await this before registering the session middleware so no request can
-// reach it before the table exists.
 async function ensureSessionTable(): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS "session" (
@@ -64,9 +54,6 @@ async function ensureSessionTable(): Promise<void> {
   `);
 }
 
-// Tabela de relatórios mensais "fechados" (snapshot congelado). Criada aqui
-// pelo mesmo motivo da tabela de sessão: o drizzle-kit push não roda
-// automaticamente no deploy, então garantimos a existência da tabela no boot.
 async function ensureMonthlyReportsTable(): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS "monthly_reports" (
@@ -85,8 +72,49 @@ async function ensureMonthlyReportsTable(): Promise<void> {
   `);
 }
 
+async function ensureCategoriesTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "categories" (
+      "id" serial PRIMARY KEY,
+      "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "name" text NOT NULL,
+      "type" text NOT NULL,
+      "color" text NOT NULL DEFAULT '#1a5c2a',
+      "created_at" timestamp NOT NULL DEFAULT now()
+    );
+  `);
+}
+
+async function ensureInventoryTables(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "inventory" (
+      "id" serial PRIMARY KEY,
+      "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "name" text NOT NULL,
+      "quantity" integer NOT NULL DEFAULT 0,
+      "min_quantity" integer NOT NULL DEFAULT 0,
+      "cost_price" numeric(12,2) NOT NULL DEFAULT 0,
+      "sale_price" numeric(12,2) NOT NULL DEFAULT 0,
+      "created_at" timestamp NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "inventory_movements" (
+      "id" serial PRIMARY KEY,
+      "inventory_id" integer NOT NULL REFERENCES "inventory"("id") ON DELETE CASCADE,
+      "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "type" text NOT NULL,
+      "quantity" integer NOT NULL,
+      "note" text,
+      "created_at" timestamp NOT NULL DEFAULT now()
+    );
+  `);
+}
+
 await ensureSessionTable();
 await ensureMonthlyReportsTable();
+await ensureCategoriesTable();
+await ensureInventoryTables();
 
 app.use(
   session({

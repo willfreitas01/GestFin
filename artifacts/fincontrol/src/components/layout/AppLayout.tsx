@@ -1,7 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
-import { LayoutDashboard, PlusCircle, List, FileText, LogOut, Menu } from "lucide-react";
+import {
+  LayoutDashboard,
+  PlusCircle,
+  List,
+  FileText,
+  LogOut,
+  Menu,
+  Package,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
@@ -11,10 +19,14 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
-  const { data: user, isLoading, isError } = useGetMe({
+  const {
+    data: user,
+    isLoading,
+    isError,
+  } = useGetMe({
     query: {
       retry: false,
-    }
+    },
   });
   const logout = useLogout();
   const [open, setOpen] = useState(false);
@@ -30,10 +42,15 @@ export function AppLayout({ children }: AppLayoutProps) {
     { href: "/registrar", label: "Registrar", icon: PlusCircle },
     { href: "/historico", label: "Histórico", icon: List },
     { href: "/relatorio", label: "Relatório", icon: FileText },
+    { href: "/estoque", label: "Estoque", icon: Package },
   ];
 
   if (isLoading) {
-    return <div className="flex h-screen items-center justify-center">Carregando...</div>;
+    return (
+      <div className="flex h-screen items-center justify-center">
+        Carregando...
+      </div>
+    );
   }
 
   if (!user) return null;
@@ -42,7 +59,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     logout.mutate(undefined, {
       onSuccess: () => {
         setLocation("/login");
-      }
+      },
     });
   };
 
@@ -87,7 +104,9 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 border-r border-sidebar-border bg-sidebar">
         <div className="h-16 flex items-center px-6 border-b border-sidebar-border">
-          <span className="text-xl font-bold text-primary tracking-tight">FinControl</span>
+          <span className="text-xl font-bold text-primary tracking-tight">
+            FinControl
+          </span>
         </div>
         <NavLinks />
       </aside>
@@ -95,16 +114,23 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Mobile Header & Content */}
       <div className="flex flex-col flex-1 overflow-hidden">
         <header className="md:hidden h-16 flex items-center justify-between px-4 border-b bg-card">
-          <span className="text-xl font-bold text-primary tracking-tight">FinControl</span>
+          <span className="text-xl font-bold text-primary tracking-tight">
+            FinControl
+          </span>
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
                 <Menu className="h-6 w-6" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0 flex flex-col bg-sidebar border-r-0">
+            <SheetContent
+              side="left"
+              className="w-64 p-0 flex flex-col bg-sidebar border-r-0"
+            >
               <div className="h-16 flex items-center px-6 border-b border-sidebar-border">
-                <span className="text-xl font-bold text-primary tracking-tight">FinControl</span>
+                <span className="text-xl font-bold text-primary tracking-tight">
+                  FinControl
+                </span>
               </div>
               <NavLinks />
             </SheetContent>
@@ -112,9 +138,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="max-w-6xl mx-auto">
-            {children}
-          </div>
+          <div className="max-w-6xl mx-auto">{children}</div>
         </main>
       </div>
     </div>

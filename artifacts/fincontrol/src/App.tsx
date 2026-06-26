@@ -10,6 +10,7 @@ import Dashboard from "@/pages/dashboard";
 import Registrar from "@/pages/registrar";
 import Historico from "@/pages/historico";
 import Relatorio from "@/pages/relatorio";
+import Estoque from "@/pages/estoque";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -20,26 +21,40 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/recover" component={Recover} />
-      
+
       {/* Protected Routes */}
       <Route path="/dashboard">
-        <AppLayout><Dashboard /></AppLayout>
+        <AppLayout>
+          <Dashboard />
+        </AppLayout>
       </Route>
       <Route path="/registrar">
-        <AppLayout><Registrar /></AppLayout>
+        <AppLayout>
+          <Registrar />
+        </AppLayout>
       </Route>
       <Route path="/historico">
-        <AppLayout><Historico /></AppLayout>
+        <AppLayout>
+          <Historico />
+        </AppLayout>
       </Route>
       <Route path="/relatorio">
-        <AppLayout><Relatorio /></AppLayout>
+        <AppLayout>
+          <Relatorio />
+        </AppLayout>
       </Route>
-      
-      {/* Default route redirect to dashboard */}
-      <Route path="/">
-        <AppLayout><Dashboard /></AppLayout>
+      <Route path="/estoque">
+        <AppLayout>
+          <Estoque />
+        </AppLayout>
       </Route>
 
+      {/* Default route redirect to dashboard */}
+      <Route path="/">
+        <AppLayout>
+          <Dashboard />
+        </AppLayout>
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );

@@ -1,0 +1,2 @@
+projeto.tar.gz filter=lfs diff=lfs merge=lfs -text
+projeto2.tar.gz filter=lfs diff=lfs merge=lfs -text
