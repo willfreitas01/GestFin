@@ -8,7 +8,6 @@ import {
 } from "@workspace/api-client-react";
 import type { MonthlyReport } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { CATEGORY_LABELS, CATEGORY_COLORS } from "@/lib/constants";
 import {
   Card,
   CardContent,
@@ -53,9 +52,6 @@ import {
   LockOpen,
 } from "lucide-react";
 
-// O backend retorna campos extras (closed, closedAt) além do shape gerado
-// pelo orval em MonthlyReport. Estendemos o tipo localmente aqui em vez de
-// editar o arquivo gerado, que seria sobrescrito numa regeneração futura.
 type MonthlyReportWithClosedState = MonthlyReport & {
   closed: boolean;
   closedAt?: string;
@@ -67,7 +63,6 @@ export default function Relatorio() {
   const { data: availableMonths, isLoading: isLoadingMonths } =
     useListAvailableMonths();
 
-  // Default to current month YYYY-MM if none selected
   const defaultMonth = useMemo(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -75,8 +70,6 @@ export default function Relatorio() {
 
   const [selectedMonth, setSelectedMonth] = useState<string>(defaultMonth);
 
-  // If availableMonths loads and our selected month isn't in it, maybe we still want to query it,
-  // but let's just keep the state simple.
   const { data: report, isLoading: isLoadingReport } =
     useGetMonthlyReport<MonthlyReportWithClosedState>(
       { month: selectedMonth },
@@ -88,7 +81,7 @@ export default function Relatorio() {
       onSuccess: () => {
         toast({
           title: "Mês fechado com sucesso",
-          description: `O relatório de ${formatMonthLabel(selectedMonth)} foi congelado e não será mais alterado.`,
+          description: `O relatório de ${formatMonthLabel(selectedMonth)} foi congelado.`,
         });
         queryClient.invalidateQueries({
           queryKey: getGetMonthlyReportQueryKey({ month: selectedMonth }),
@@ -98,7 +91,8 @@ export default function Relatorio() {
         toast({
           variant: "destructive",
           title: "Erro ao fechar o mês",
-          description: error.data?.error || "Tente novamente mais tarde.",
+          description:
+            (error as any).data?.error || "Tente novamente mais tarde.",
         });
       },
     },
@@ -113,10 +107,6 @@ export default function Relatorio() {
       .replace(/^\w/, (c) => c.toUpperCase());
   };
 
-  const handleCloseMonth = () => {
-    closeMonthMutation.mutate({ data: { month: selectedMonth } });
-  };
-
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -128,7 +118,6 @@ export default function Relatorio() {
             Análise detalhada por período
           </p>
         </div>
-
         <div className="w-full sm:w-48">
           <Select
             value={selectedMonth}
@@ -156,17 +145,12 @@ export default function Relatorio() {
 
       {isLoadingReport ? (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => (
-              <Card key={i} className="h-28 animate-pulse bg-muted/20" />
-            ))}
-          </div>
-          <Card className="h-64 animate-pulse bg-muted/20" />
-          <Card className="h-96 animate-pulse bg-muted/20" />
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="h-28 animate-pulse bg-muted/20" />
+          ))}
         </div>
       ) : report ? (
         <>
-          {/* Status do fechamento do mês */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 rounded-lg border bg-muted/30 p-4">
             {report.closed ? (
               <div className="flex items-center gap-2 text-sm">
@@ -176,7 +160,7 @@ export default function Relatorio() {
                   <span className="font-medium">
                     {new Date(report.closedAt!).toLocaleDateString("pt-BR")}
                   </span>
-                  . Os totais abaixo estão congelados e não mudam mais.
+                  . Os totais estão congelados.
                 </span>
               </div>
             ) : (
@@ -188,7 +172,6 @@ export default function Relatorio() {
                 </span>
               </div>
             )}
-
             {!report.closed && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -197,8 +180,7 @@ export default function Relatorio() {
                     size="sm"
                     disabled={closeMonthMutation.isPending}
                   >
-                    <Lock className="h-4 w-4 mr-2" />
-                    Fechar mês
+                    <Lock className="h-4 w-4 mr-2" /> Fechar mês
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -207,16 +189,19 @@ export default function Relatorio() {
                       Fechar {formatMonthLabel(selectedMonth)}?
                     </AlertDialogTitle>
                     <AlertDialogDescription>
-                      Isso vai congelar os totais deste mês (receitas, despesas,
-                      saldo e composição por categoria) com os valores atuais.
-                      Depois de fechado, este relatório não mudará mais, mesmo
-                      que você edite ou exclua lançamentos deste mês depois.
-                      Essa ação não pode ser desfeita.
+                      Isso vai congelar os totais deste mês. Essa ação não pode
+                      ser desfeita.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleCloseMonth}>
+                    <AlertDialogAction
+                      onClick={() =>
+                        closeMonthMutation.mutate({
+                          data: { month: selectedMonth },
+                        })
+                      }
+                    >
                       Sim, fechar mês
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -225,7 +210,6 @@ export default function Relatorio() {
             )}
           </div>
 
-          {/* KPI Row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Card className="border-l-4 border-l-green-500">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -240,7 +224,6 @@ export default function Relatorio() {
                 </div>
               </CardContent>
             </Card>
-
             <Card className="border-l-4 border-l-red-500">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -254,7 +237,6 @@ export default function Relatorio() {
                 </div>
               </CardContent>
             </Card>
-
             <Card
               className={`border-l-4 ${report.balance >= 0 ? "border-l-primary" : "border-l-red-500"}`}
             >
@@ -274,7 +256,6 @@ export default function Relatorio() {
             </Card>
           </div>
 
-          {/* Breakdown Table */}
           <Card>
             <CardHeader>
               <CardTitle>Composição por Categoria</CardTitle>
@@ -297,10 +278,7 @@ export default function Relatorio() {
                       {report.byCategory.map((cat) => (
                         <TableRow key={cat.category}>
                           <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={`font-normal ${CATEGORY_COLORS[cat.category] || ""}`}
-                            >
+                            <Badge variant="outline" className="font-normal">
                               {cat.label}
                             </Badge>
                           </TableCell>
@@ -323,7 +301,6 @@ export default function Relatorio() {
             </CardContent>
           </Card>
 
-          {/* Monthly Transactions List */}
           <Card>
             <CardHeader>
               <CardTitle>Lançamentos do Mês</CardTitle>
@@ -344,30 +321,33 @@ export default function Relatorio() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {report.transactions.map((tx) => (
-                        <TableRow key={tx.id}>
-                          <TableCell className="whitespace-nowrap">
-                            {formatDate(tx.date)}
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {tx.description}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={`font-normal ${CATEGORY_COLORS[tx.category] || ""}`}
+                      {report.transactions.map((tx) => {
+                        const isIncome = (tx as any).type === "income";
+                        return (
+                          <TableRow key={tx.id}>
+                            <TableCell className="whitespace-nowrap">
+                              {formatDate(tx.date)}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {tx.description}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={`font-normal ${isIncome ? "text-green-700 bg-green-100 border-green-200" : "text-red-700 bg-red-100 border-red-200"}`}
+                              >
+                                {tx.category}
+                              </Badge>
+                            </TableCell>
+                            <TableCell
+                              className={`text-right font-semibold whitespace-nowrap ${isIncome ? "text-green-600 dark:text-green-400" : ""}`}
                             >
-                              {CATEGORY_LABELS[tx.category] || tx.category}
-                            </Badge>
-                          </TableCell>
-                          <TableCell
-                            className={`text-right font-semibold whitespace-nowrap ${tx.category === "venda" ? "text-green-600 dark:text-green-400" : ""}`}
-                          >
-                            {tx.category === "venda" ? "+" : "-"}
-                            {formatCurrency(tx.amount)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                              {isIncome ? "+" : "-"}
+                              {formatCurrency(tx.amount)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
