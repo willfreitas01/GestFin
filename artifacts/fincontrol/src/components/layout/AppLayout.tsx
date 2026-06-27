@@ -35,10 +35,10 @@ export function AppLayout({ children }: AppLayoutProps) {
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/registrar", label: "Registrar", icon: PlusCircle },
-    { href: "/historico", label: "Histórico", icon: List },
-    { href: "/relatorio", label: "Relatório", icon: FileText },
     { href: "/estoque", label: "Estoque", icon: Package },
     { href: "/funcionarios", label: "Funcionários", icon: Users },
+    { href: "/historico", label: "Histórico", icon: List },
+    { href: "/relatorio", label: "Relatório", icon: FileText },
   ];
 
   if (isLoading) {
