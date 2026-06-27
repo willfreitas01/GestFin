@@ -15,28 +15,18 @@ app.use(
     logger,
     serializers: {
       req(req) {
-        return {
-          id: req.id,
-          method: req.method,
-          url: req.url?.split("?")[0],
-        };
+        return { id: req.id, method: req.method, url: req.url?.split("?")[0] };
       },
       res(res) {
-        return {
-          statusCode: res.statusCode,
-        };
+        return { statusCode: res.statusCode };
       },
     },
   }),
 );
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  }),
-);
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 const sessionSecret = process.env.SESSION_SECRET ?? "fincontrol-dev-secret";
 const PgSessionStore = pgSession(session);
 
@@ -49,9 +39,9 @@ async function ensureSessionTable(): Promise<void> {
       CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE
     );
   `);
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
-  `);
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");`,
+  );
 }
 
 async function ensureMonthlyReportsTable(): Promise<void> {
@@ -111,18 +101,22 @@ async function ensureInventoryTables(): Promise<void> {
   `);
 }
 
-// Corrige o type das transações existentes que foram salvas antes da coluna existir
+// Corrige o type de todas as transações que estão erradas
 async function fixTransactionTypes(): Promise<void> {
-  await pool.query(`
-    UPDATE "transactions" SET "type" = 'income'
-    WHERE "category" IN ('venda', 'Receita Operacional')
-    AND "type" != 'income';
-  `);
-  await pool.query(`
-    UPDATE "transactions" SET "type" = 'expense'
-    WHERE "category" IN ('material', 'funcionarios', 'outro', 'Insumos', 'Folha de Pagamento', 'Outras Despesas')
-    AND "type" != 'expense';
-  `);
+  // Por categoria
+  await pool.query(
+    `UPDATE "transactions" SET "type" = 'income' WHERE "category" IN ('venda', 'Receita Operacional') AND "type" != 'income';`,
+  );
+  await pool.query(
+    `UPDATE "transactions" SET "type" = 'expense' WHERE "category" IN ('material', 'funcionarios', 'outro', 'Insumos', 'Folha de Pagamento', 'Outras Despesas') AND "type" != 'expense';`,
+  );
+  // Por descrição (transações do estoque)
+  await pool.query(
+    `UPDATE "transactions" SET "type" = 'income' WHERE "description" LIKE 'Venda de estoque%' AND "type" != 'income';`,
+  );
+  await pool.query(
+    `UPDATE "transactions" SET "type" = 'expense' WHERE "description" LIKE 'Entrada de estoque%' AND "type" != 'expense';`,
+  );
 }
 
 await ensureSessionTable();
@@ -145,7 +139,7 @@ app.use(
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   }),
 );

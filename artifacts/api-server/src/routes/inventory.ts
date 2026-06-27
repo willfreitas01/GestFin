@@ -191,6 +191,7 @@ router.post(
           userId,
           date: dateStr,
           category: "Insumos",
+          type: "expense",
           description: `Entrada de estoque: ${product.name} (${qty} un)${note ? ` — ${note}` : ""}`,
           amount: String(amount),
         });
@@ -203,6 +204,7 @@ router.post(
           userId,
           date: dateStr,
           category: "Receita Operacional",
+          type: "income",
           description: `Venda de estoque: ${product.name} (${qty} un)${note ? ` — ${note}` : ""}`,
           amount: String(amount),
         });
