@@ -14,7 +14,14 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
@@ -29,19 +36,14 @@ export default function Login() {
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      username: "",
-      password: "",
-    },
+    defaultValues: { username: "", password: "" },
   });
 
   function onSubmit(values: z.infer<typeof loginSchema>) {
     login.mutate(
       { data: values },
       {
-        onSuccess: () => {
-          setLocation("/dashboard");
-        },
+        onSuccess: () => setLocation("/dashboard"),
         onError: () => {
           toast({
             variant: "destructive",
@@ -49,7 +51,7 @@ export default function Login() {
             description: "Usuário ou senha incorretos.",
           });
         },
-      }
+      },
     );
   }
 
@@ -57,10 +59,14 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-primary tracking-tight mb-2">FinControl</h1>
-          <p className="text-muted-foreground">O seu parceiro financeiro confiável</p>
+          <h1 className="text-4xl font-bold text-primary tracking-tight mb-2">
+            FinControl
+          </h1>
+          <p className="text-muted-foreground">
+            O seu parceiro financeiro confiável
+          </p>
         </div>
-        
+
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Entrar</CardTitle>
@@ -68,7 +74,10 @@ export default function Login() {
           </CardHeader>
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-4"
+              >
                 <FormField
                   control={form.control}
                   name="username"
@@ -89,29 +98,50 @@ export default function Login() {
                     <FormItem>
                       <FormLabel>Senha</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="Sua senha" {...field} />
+                        <Input
+                          type="password"
+                          placeholder="Sua senha"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full" disabled={login.isPending}>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={login.isPending}
+                >
                   {login.isPending ? "Entrando..." : "Entrar"}
                 </Button>
               </form>
             </Form>
           </CardContent>
-          <CardFooter className="flex flex-col space-y-4 text-sm text-center">
+          <CardFooter className="flex flex-col space-y-3 text-sm text-center">
             <div className="text-muted-foreground">
               Esqueceu sua senha?{" "}
-              <Link href="/recover" className="text-primary hover:underline font-medium">
+              <Link
+                href="/recover"
+                className="text-primary hover:underline font-medium"
+              >
                 Recuperar senha
               </Link>
             </div>
             <div className="text-muted-foreground">
               Não tem uma conta?{" "}
-              <Link href="/register" className="text-primary hover:underline font-medium">
+              <Link
+                href="/register"
+                className="text-primary hover:underline font-medium"
+              >
                 Cadastre-se
+              </Link>
+            </div>
+            <div className="w-full border-t pt-3">
+              <Link href="/login-funcionario">
+                <Button variant="outline" className="w-full">
+                  Sou funcionário — entrar aqui
+                </Button>
               </Link>
             </div>
           </CardFooter>
