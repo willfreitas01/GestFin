@@ -12,6 +12,8 @@ import Historico from "@/pages/historico";
 import Relatorio from "@/pages/relatorio";
 import Estoque from "@/pages/estoque";
 import Funcionarios from "@/pages/funcionarios";
+import LoginFuncionario from "@/pages/login-funcionario";
+import PainelFuncionario from "@/pages/painel-funcionario";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -22,6 +24,8 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/recover" component={Recover} />
+      <Route path="/login-funcionario" component={LoginFuncionario} />
+      <Route path="/painel-funcionario" component={PainelFuncionario} />
       <Route path="/dashboard">
         <AppLayout>
           <Dashboard />
