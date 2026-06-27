@@ -9,6 +9,7 @@ import {
   LogOut,
   Menu,
   Package,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -23,18 +24,12 @@ export function AppLayout({ children }: AppLayoutProps) {
     data: user,
     isLoading,
     isError,
-  } = useGetMe({
-    query: {
-      retry: false,
-    },
-  });
+  } = useGetMe({ query: { retry: false } });
   const logout = useLogout();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && isError) {
-      setLocation("/login");
-    }
+    if (!isLoading && isError) setLocation("/login");
   }, [isError, isLoading, setLocation]);
 
   const navItems = [
@@ -43,6 +38,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { href: "/historico", label: "Histórico", icon: List },
     { href: "/relatorio", label: "Relatório", icon: FileText },
     { href: "/estoque", label: "Estoque", icon: Package },
+    { href: "/funcionarios", label: "Funcionários", icon: Users },
   ];
 
   if (isLoading) {
@@ -56,11 +52,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   if (!user) return null;
 
   const handleLogout = () => {
-    logout.mutate(undefined, {
-      onSuccess: () => {
-        setLocation("/login");
-      },
-    });
+    logout.mutate(undefined, { onSuccess: () => setLocation("/login") });
   };
 
   const NavLinks = () => (
@@ -101,7 +93,6 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 border-r border-sidebar-border bg-sidebar">
         <div className="h-16 flex items-center px-6 border-b border-sidebar-border">
           <span className="text-xl font-bold text-primary tracking-tight">
@@ -111,7 +102,6 @@ export function AppLayout({ children }: AppLayoutProps) {
         <NavLinks />
       </aside>
 
-      {/* Mobile Header & Content */}
       <div className="flex flex-col flex-1 overflow-hidden">
         <header className="md:hidden h-16 flex items-center justify-between px-4 border-b bg-card">
           <span className="text-xl font-bold text-primary tracking-tight">

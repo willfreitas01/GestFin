@@ -11,6 +11,7 @@ import Registrar from "@/pages/registrar";
 import Historico from "@/pages/historico";
 import Relatorio from "@/pages/relatorio";
 import Estoque from "@/pages/estoque";
+import Funcionarios from "@/pages/funcionarios";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -21,8 +22,6 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/recover" component={Recover} />
-
-      {/* Protected Routes */}
       <Route path="/dashboard">
         <AppLayout>
           <Dashboard />
@@ -48,8 +47,11 @@ function Router() {
           <Estoque />
         </AppLayout>
       </Route>
-
-      {/* Default route redirect to dashboard */}
+      <Route path="/funcionarios">
+        <AppLayout>
+          <Funcionarios />
+        </AppLayout>
+      </Route>
       <Route path="/">
         <AppLayout>
           <Dashboard />
