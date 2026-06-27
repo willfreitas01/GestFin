@@ -6,6 +6,7 @@ import pgSession from "connect-pg-simple";
 import { pool } from "@workspace/db";
 import router from "./routes";
 import { logger } from "./lib/logger";
+
 const app: Express = express();
 
 app.set("trust proxy", 1);
@@ -101,16 +102,34 @@ async function ensureInventoryTables(): Promise<void> {
   `);
 }
 
-// Corrige o type de todas as transações que estão erradas
+async function ensureEmployeesTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "employees" (
+      "id" serial PRIMARY KEY,
+      "owner_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "name" text NOT NULL,
+      "email" text NOT NULL,
+      "password_hash" text NOT NULL,
+      "active" boolean NOT NULL DEFAULT true,
+      "can_sell_inventory" boolean NOT NULL DEFAULT true,
+      "can_register_sale" boolean NOT NULL DEFAULT false,
+      "can_view_reports" boolean NOT NULL DEFAULT false,
+      "can_view_history" boolean NOT NULL DEFAULT false,
+      "created_at" timestamp NOT NULL DEFAULT now()
+    );
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS "idx_employees_owner_id" ON "employees" ("owner_id");
+  `);
+}
+
 async function fixTransactionTypes(): Promise<void> {
-  // Por categoria
   await pool.query(
     `UPDATE "transactions" SET "type" = 'income' WHERE "category" IN ('venda', 'Receita Operacional') AND "type" != 'income';`,
   );
   await pool.query(
     `UPDATE "transactions" SET "type" = 'expense' WHERE "category" IN ('material', 'funcionarios', 'outro', 'Insumos', 'Folha de Pagamento', 'Outras Despesas') AND "type" != 'expense';`,
   );
-  // Por descrição (transações do estoque)
   await pool.query(
     `UPDATE "transactions" SET "type" = 'income' WHERE "description" LIKE 'Venda de estoque%' AND "type" != 'income';`,
   );
@@ -123,6 +142,7 @@ await ensureSessionTable();
 await ensureMonthlyReportsTable();
 await ensureCategoriesTable();
 await ensureInventoryTables();
+await ensureEmployeesTable();
 await fixTransactionTypes();
 
 app.use(
@@ -143,5 +163,6 @@ app.use(
     },
   }),
 );
+
 app.use("/api", router);
 export default app;

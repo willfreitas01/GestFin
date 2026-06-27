@@ -13,6 +13,9 @@ declare module "express-session" {
   interface SessionData {
     userId: number;
     username: string;
+    employeeId: number;
+    ownerId: number;
+    employeeName: string;
   }
 }
 
@@ -42,18 +45,25 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 
   const { username, password, securityQuestion, securityAnswer } = parsed.data;
 
-  const existing = await db.select().from(usersTable).where(eq(usersTable.username, username.toLowerCase())).limit(1);
+  const existing = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.username, username.toLowerCase()))
+    .limit(1);
   if (existing.length > 0) {
     res.status(409).json({ error: "Usuário já existe. Escolha outro nome." });
     return;
   }
 
-  const [user] = await db.insert(usersTable).values({
-    username: username.toLowerCase(),
-    passwordHash: hashStr(username.toLowerCase() + password),
-    securityQuestion,
-    securityAnswerHash: hashStr(securityAnswer.trim().toLowerCase()),
-  }).returning({ id: usersTable.id, username: usersTable.username });
+  const [user] = await db
+    .insert(usersTable)
+    .values({
+      username: username.toLowerCase(),
+      passwordHash: hashStr(username.toLowerCase() + password),
+      securityQuestion,
+      securityAnswerHash: hashStr(securityAnswer.trim().toLowerCase()),
+    })
+    .returning({ id: usersTable.id, username: usersTable.username });
 
   req.session.userId = user.id;
   req.session.username = user.username;
@@ -70,7 +80,11 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
   const { username, password } = parsed.data;
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username.toLowerCase())).limit(1);
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.username, username.toLowerCase()))
+    .limit(1);
   if (!user) {
     res.status(401).json({ error: "Usuário não encontrado." });
     return;
@@ -109,7 +123,11 @@ router.post("/auth/recover/question", async (req, res): Promise<void> => {
     return;
   }
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, parsed.data.username.toLowerCase())).limit(1);
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.username, parsed.data.username.toLowerCase()))
+    .limit(1);
   if (!user) {
     res.status(404).json({ error: "Usuário não encontrado." });
     return;
@@ -130,7 +148,11 @@ router.post("/auth/recover/verify", async (req, res): Promise<void> => {
 
   const { username, answer } = parsed.data;
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username.toLowerCase())).limit(1);
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.username, username.toLowerCase()))
+    .limit(1);
   if (!user) {
     res.status(404).json({ error: "Usuário não encontrado." });
     return;
@@ -142,7 +164,8 @@ router.post("/auth/recover/verify", async (req, res): Promise<void> => {
   }
 
   const tempPassword = genTempPassword();
-  await db.update(usersTable)
+  await db
+    .update(usersTable)
     .set({ passwordHash: hashStr(username.toLowerCase() + tempPassword) })
     .where(eq(usersTable.id, user.id));
 
