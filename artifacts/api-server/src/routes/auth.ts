@@ -67,6 +67,9 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 
   req.session.userId = user.id;
   req.session.username = user.username;
+  delete req.session.employeeId;
+  delete req.session.ownerId;
+  delete req.session.employeeName;
 
   res.status(201).json({ id: user.id, username: user.username });
 });
@@ -97,6 +100,9 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
   req.session.userId = user.id;
   req.session.username = user.username;
+  delete req.session.employeeId;
+  delete req.session.ownerId;
+  delete req.session.employeeName;
 
   res.json({ id: user.id, username: user.username });
 });
