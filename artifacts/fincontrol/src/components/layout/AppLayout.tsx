@@ -10,6 +10,9 @@ import {
   Menu,
   Package,
   Users,
+  UserCircle,
+  Truck,
+  Calculator,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -37,6 +40,9 @@ export function AppLayout({ children }: AppLayoutProps) {
     { href: "/registrar", label: "Registrar", icon: PlusCircle },
     { href: "/estoque", label: "Estoque", icon: Package },
     { href: "/funcionarios", label: "Funcionários", icon: Users },
+    { href: "/clientes", label: "Clientes", icon: UserCircle },
+    { href: "/fornecedores", label: "Fornecedores", icon: Truck },
+    { href: "/simuladores", label: "Simuladores", icon: Calculator },
     { href: "/historico", label: "Histórico", icon: List },
     { href: "/relatorio", label: "Relatório", icon: FileText },
   ];
@@ -57,7 +63,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const NavLinks = () => (
     <>
-      <div className="flex flex-col space-y-2 mt-4 px-4 flex-1">
+      <div className="flex flex-col space-y-1 mt-4 px-4 flex-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location === item.href;

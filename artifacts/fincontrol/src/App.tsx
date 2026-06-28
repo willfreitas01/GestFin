@@ -12,6 +12,9 @@ import Historico from "@/pages/historico";
 import Relatorio from "@/pages/relatorio";
 import Estoque from "@/pages/estoque";
 import Funcionarios from "@/pages/funcionarios";
+import Clientes from "@/pages/clientes";
+import Fornecedores from "@/pages/fornecedores";
+import Simuladores from "@/pages/simuladores";
 import LoginFuncionario from "@/pages/login-funcionario";
 import PainelFuncionario from "@/pages/painel-funcionario";
 import NotFound from "@/pages/not-found";
@@ -54,6 +57,21 @@ function Router() {
       <Route path="/funcionarios">
         <AppLayout>
           <Funcionarios />
+        </AppLayout>
+      </Route>
+      <Route path="/clientes">
+        <AppLayout>
+          <Clientes />
+        </AppLayout>
+      </Route>
+      <Route path="/fornecedores">
+        <AppLayout>
+          <Fornecedores />
+        </AppLayout>
+      </Route>
+      <Route path="/simuladores">
+        <AppLayout>
+          <Simuladores />
         </AppLayout>
       </Route>
       <Route path="/">

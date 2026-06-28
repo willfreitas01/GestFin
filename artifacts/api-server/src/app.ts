@@ -8,7 +8,6 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
-
 app.set("trust proxy", 1);
 
 app.use(
@@ -118,8 +117,39 @@ async function ensureEmployeesTable(): Promise<void> {
       "created_at" timestamp NOT NULL DEFAULT now()
     );
   `);
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS "idx_employees_owner_id" ON "employees" ("owner_id");`,
+  );
+}
+
+async function ensureClientsTable(): Promise<void> {
   await pool.query(`
-    CREATE INDEX IF NOT EXISTS "idx_employees_owner_id" ON "employees" ("owner_id");
+    CREATE TABLE IF NOT EXISTS "clients" (
+      "id" serial PRIMARY KEY,
+      "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "name" text NOT NULL,
+      "phone" text,
+      "email" text,
+      "address" text,
+      "notes" text,
+      "created_at" timestamp NOT NULL DEFAULT now()
+    );
+  `);
+}
+
+async function ensureSuppliersTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "suppliers" (
+      "id" serial PRIMARY KEY,
+      "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "name" text NOT NULL,
+      "phone" text,
+      "email" text,
+      "cnpj" text,
+      "category" text,
+      "notes" text,
+      "created_at" timestamp NOT NULL DEFAULT now()
+    );
   `);
 }
 
@@ -143,6 +173,8 @@ await ensureMonthlyReportsTable();
 await ensureCategoriesTable();
 await ensureInventoryTables();
 await ensureEmployeesTable();
+await ensureClientsTable();
+await ensureSuppliersTable();
 await fixTransactionTypes();
 
 app.use(
