@@ -51,6 +51,23 @@ router.post("/inventory", requireAuth, async (req, res): Promise<void> => {
       salePrice: String(parseFloat(salePrice) || 0),
     })
     .returning();
+
+  // Lança despesa automática se tiver quantidade inicial
+  const qty = parseInt(quantity) || 0;
+  const cost = parseFloat(costPrice) || 0;
+  if (qty > 0 && cost > 0) {
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    await db.insert(transactionsTable).values({
+      userId,
+      date: dateStr,
+      category: "Insumos",
+      type: "expense",
+      description: `Entrada de estoque: ${row.name} (${qty} un)`,
+      amount: String(cost * qty),
+    });
+  }
+
   res.status(201).json({
     id: row.id,
     name: row.name,
@@ -184,7 +201,6 @@ router.post(
     const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
     if (type === "in") {
-      // Entrada = despesa (custo do produto × quantidade)
       const amount = parseFloat(String(product.costPrice)) * qty;
       if (amount > 0) {
         await db.insert(transactionsTable).values({
@@ -197,7 +213,6 @@ router.post(
         });
       }
     } else {
-      // Saída = receita (preço de venda × quantidade)
       const amount = parseFloat(String(product.salePrice)) * qty;
       if (amount > 0) {
         await db.insert(transactionsTable).values({
