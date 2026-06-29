@@ -87,6 +87,7 @@ const clientSchema = z.object({
   email: z.string().optional(),
   address: z.string().optional(),
   notes: z.string().optional(),
+  service: z.string().optional(),
 });
 
 const orderSchema = z.object({
@@ -103,11 +104,12 @@ async function fetchClients(): Promise<Client[]> {
 async function createClient(
   data: z.infer<typeof clientSchema>,
 ): Promise<Client> {
+  const { service, ...clientData } = data;
   const res = await fetch("/api/clients", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify(clientData),
   });
   if (!res.ok) {
     const e = await res.json();
@@ -191,7 +193,7 @@ function sendWhatsApp(phone: string, clientName: string, orderDesc: string) {
   window.open(`https://wa.me/${number}?text=${msg}`, "_blank");
 }
 
-// ── Componente de pedidos por cliente ────────────────
+// ── Pedidos por cliente ───────────────────────────────
 function ClientOrders({ client }: { client: Client }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -265,7 +267,7 @@ function ClientOrders({ client }: { client: Client }) {
                 <FormItem>
                   <FormControl>
                     <Input
-                      placeholder="Descrição do pedido..."
+                      placeholder="Descrição do serviço..."
                       {...field}
                       className="h-8 text-sm"
                     />
@@ -402,7 +404,7 @@ function ClientOrders({ client }: { client: Client }) {
   );
 }
 
-// ── Página principal ─────────────────────────────────
+// ── Página principal ──────────────────────────────────
 export default function Clientes() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -418,7 +420,14 @@ export default function Clientes() {
 
   const createMutation = useMutation({
     mutationFn: createClient,
-    onSuccess: () => {
+    onSuccess: async (newClient, vars) => {
+      if (vars.service?.trim()) {
+        try {
+          await createOrder(newClient.id, { description: vars.service.trim() });
+          queryClient.invalidateQueries({ queryKey: ["orders", newClient.id] });
+          setExpandedId(newClient.id);
+        } catch {}
+      }
       queryClient.invalidateQueries({ queryKey: ["clients"] });
       toast({ title: "Cliente cadastrado com sucesso." });
       setShowNew(false);
@@ -448,7 +457,14 @@ export default function Clientes() {
 
   const newForm = useForm<z.infer<typeof clientSchema>>({
     resolver: zodResolver(clientSchema),
-    defaultValues: { name: "", phone: "", email: "", address: "", notes: "" },
+    defaultValues: {
+      name: "",
+      phone: "",
+      email: "",
+      address: "",
+      notes: "",
+      service: "",
+    },
   });
 
   const editForm = useForm<z.infer<typeof clientSchema>>({
@@ -607,7 +623,7 @@ export default function Clientes() {
                         variant="outline"
                         size="icon"
                         className="h-8 w-8"
-                        title="Pedidos"
+                        title="Ver pedidos"
                         onClick={() =>
                           setExpandedId(expandedId === c.id ? null : c.id)
                         }
@@ -707,6 +723,27 @@ export default function Clientes() {
                     <FormLabel>Endereço</FormLabel>
                     <FormControl>
                       <Input placeholder="Rua, número, bairro..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={newForm.control}
+                name="service"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Serviço a realizar{" "}
+                      <span className="text-muted-foreground font-normal">
+                        (opcional)
+                      </span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Ex: Lavagem completa, Troca de tela..."
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
