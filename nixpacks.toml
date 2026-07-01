@@ -1,11 +1,11 @@
 [phases.setup]
-nixPkgs = ["nodejs_22"]
+nixPkgs = ["nodejs_23"]
 
 [phases.install]
 cmds = ["npm install -g pnpm@10 --prefix /usr/local", "/usr/local/bin/pnpm install --no-frozen-lockfile"]
 
 [phases.build]
-cmds = ["/usr/local/bin/pnpm --filter @workspace/api-server build", "/usr/local/bin/pnpm --filter @workspace/fincontrol build"]
+cmds = ["/usr/local/bin/pnpm --filter @workspace/api-server build", "BASE_PATH=/ /usr/local/bin/pnpm --filter @workspace/fincontrol build"]
 
 [start]
 cmd = "/usr/local/bin/pnpm --filter @workspace/api-server start"
