@@ -2,11 +2,10 @@
   "$schema": "https://schema.railway.app/railway-schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "nixpacksConfigPath": "nixpacks.toml",
-    "buildCommand": ""
+    "nixpacksConfigPath": "nixpacks.toml"
   },
   "deploy": {
-    "startCommand": "pnpm --filter @workspace/api-server start",
+    "startCommand": "/usr/local/bin/pnpm --filter @workspace/api-server start",
     "restartPolicyType": "ON_FAILURE"
   }
 }
