@@ -2,10 +2,10 @@
 nixPkgs = ["nodejs_22"]
 
 [phases.install]
-cmds = ["npm install -g pnpm@10", "pnpm install --no-frozen-lockfile"]
+cmds = ["npm install -g pnpm@10 && /root/.npm-global/bin/pnpm install --no-frozen-lockfile || $(npm root -g)/pnpm/bin/pnpm install --no-frozen-lockfile"]
 
 [phases.build]
-cmds = ["pnpm --filter @workspace/api-server build"]
+cmds = ["$(npm root -g)/.bin/pnpm --filter @workspace/api-server build || npx pnpm --filter @workspace/api-server build"]
 
 [start]
-cmd = "pnpm --filter @workspace/api-server start"
+cmd = "npx pnpm --filter @workspace/api-server start"
