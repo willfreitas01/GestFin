@@ -6,6 +6,8 @@ import pgSession from "connect-pg-simple";
 import { pool } from "@workspace/db";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const app: Express = express();
 app.set("trust proxy", 1);
@@ -197,4 +199,19 @@ app.use(
 );
 
 app.use("/api", router);
+
+// Serve frontend estático em produção
+if (process.env.NODE_ENV === "production") {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const frontendDist = path.resolve(
+    __dirname,
+    "../../../artifacts/fincontrol/dist",
+  );
+  app.use(express.static(frontendDist));
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
+
 export default app;
