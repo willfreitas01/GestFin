@@ -25,6 +25,8 @@ router.get(
         description: r.description,
         status: r.status,
         notes: r.notes,
+        price: r.price ? parseFloat(r.price) : null,
+        dueDate: r.due_date ?? null,
         createdAt: r.created_at,
       })),
     );
@@ -38,42 +40,49 @@ router.post(
   async (req, res): Promise<void> => {
     const clientId = parseInt(req.params.clientId);
     const userId = req.session.userId!;
-    const { description, notes } = req.body;
+    const { description, notes, price, dueDate } = req.body;
     if (!description?.trim()) {
       res.status(400).json({ error: "Descrição obrigatória." });
       return;
     }
     const rows = await db.execute(sql`
-    INSERT INTO orders (user_id, client_id, description, notes, status)
-    VALUES (${userId}, ${clientId}, ${description.trim()}, ${notes ?? null}, 'pending')
+    INSERT INTO orders (user_id, client_id, description, notes, status, price, due_date)
+    VALUES (${userId}, ${clientId}, ${description.trim()}, ${notes ?? null}, 'pending',
+            ${price ? parseFloat(price) : null}, ${dueDate ?? null})
     RETURNING *
   `);
     const r = rows.rows[0] as any;
-    res
-      .status(201)
-      .json({
-        id: r.id,
-        clientId: r.client_id,
-        description: r.description,
-        status: r.status,
-        notes: r.notes,
-        createdAt: r.created_at,
-      });
+    res.status(201).json({
+      id: r.id,
+      clientId: r.client_id,
+      description: r.description,
+      status: r.status,
+      notes: r.notes,
+      price: r.price ? parseFloat(r.price) : null,
+      dueDate: r.due_date ?? null,
+      createdAt: r.created_at,
+    });
   },
 );
 
-// Atualizar status do pedido
+// Atualizar pedido
 router.put("/orders/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
   const userId = req.session.userId!;
-  const { status } = req.body;
+  const { status, price, dueDate, notes } = req.body;
   const valid = ["pending", "in_progress", "done", "delivered"];
-  if (!valid.includes(status)) {
+  if (status && !valid.includes(status)) {
     res.status(400).json({ error: "Status inválido." });
     return;
   }
+
   const rows = await db.execute(sql`
-    UPDATE orders SET status = ${status}, updated_at = now()
+    UPDATE orders SET
+      status = COALESCE(${status ?? null}, status),
+      price = COALESCE(${price != null ? parseFloat(price) : null}, price),
+      due_date = COALESCE(${dueDate ?? null}, due_date),
+      notes = COALESCE(${notes ?? null}, notes),
+      updated_at = now()
     WHERE id = ${id} AND user_id = ${userId}
     RETURNING *
   `);
@@ -88,6 +97,8 @@ router.put("/orders/:id", requireAuth, async (req, res): Promise<void> => {
     description: r.description,
     status: r.status,
     notes: r.notes,
+    price: r.price ? parseFloat(r.price) : null,
+    dueDate: r.due_date ?? null,
     createdAt: r.created_at,
   });
 });

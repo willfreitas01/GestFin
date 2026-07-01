@@ -41,6 +41,7 @@ import {
   MessageCircle,
   ChevronDown,
   ChevronUp,
+  FileText,
 } from "lucide-react";
 
 type Client = {
@@ -59,6 +60,8 @@ type Order = {
   description: string;
   status: "pending" | "in_progress" | "done" | "delivered";
   notes?: string;
+  price?: number | null;
+  dueDate?: string | null;
   createdAt: string;
 };
 
@@ -88,11 +91,15 @@ const clientSchema = z.object({
   address: z.string().optional(),
   notes: z.string().optional(),
   service: z.string().optional(),
+  servicePrice: z.string().optional(),
+  serviceDueDate: z.string().optional(),
 });
 
 const orderSchema = z.object({
   description: z.string().min(1, "Descrição obrigatória"),
   notes: z.string().optional(),
+  price: z.string().optional(),
+  dueDate: z.string().optional(),
 });
 
 // ── API ──────────────────────────────────────────────
@@ -104,7 +111,7 @@ async function fetchClients(): Promise<Client[]> {
 async function createClient(
   data: z.infer<typeof clientSchema>,
 ): Promise<Client> {
-  const { service, ...clientData } = data;
+  const { service, servicePrice, serviceDueDate, ...clientData } = data;
   const res = await fetch("/api/clients", {
     method: "POST",
     credentials: "include",
@@ -146,7 +153,12 @@ async function fetchOrders(clientId: number): Promise<Order[]> {
 }
 async function createOrder(
   clientId: number,
-  data: z.infer<typeof orderSchema>,
+  data: {
+    description: string;
+    notes?: string;
+    price?: string;
+    dueDate?: string;
+  },
 ): Promise<Order> {
   const res = await fetch(`/api/clients/${clientId}/orders`, {
     method: "POST",
@@ -193,6 +205,70 @@ function sendWhatsApp(phone: string, clientName: string, orderDesc: string) {
   window.open(`https://wa.me/${number}?text=${msg}`, "_blank");
 }
 
+function exportPDF(client: Client, order: Order) {
+  const html = `
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Pedido #${order.id}</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 40px; color: #1a1a1a; }
+        h1 { color: #2d6a4f; font-size: 24px; margin-bottom: 4px; }
+        .subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
+        .section { margin-bottom: 24px; }
+        .label { font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 4px; }
+        .value { font-size: 15px; color: #1a1a1a; }
+        .row { display: flex; gap: 40px; margin-bottom: 16px; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; background: #d8f3dc; color: #1b4332; }
+        .divider { border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }
+        .footer { margin-top: 48px; font-size: 12px; color: #999; text-align: center; }
+        .price { font-size: 22px; font-weight: bold; color: #2d6a4f; }
+      </style>
+    </head>
+    <body>
+      <h1>FinControl</h1>
+      <div class="subtitle">Comprovante de Pedido #${order.id}</div>
+      <hr class="divider">
+      <div class="section">
+        <div class="label">Cliente</div>
+        <div class="value">${client.name}</div>
+      </div>
+      <div class="row">
+        ${client.phone ? `<div><div class="label">Telefone</div><div class="value">${client.phone}</div></div>` : ""}
+        ${client.email ? `<div><div class="label">E-mail</div><div class="value">${client.email}</div></div>` : ""}
+      </div>
+      ${client.address ? `<div class="section"><div class="label">Endereço</div><div class="value">${client.address}</div></div>` : ""}
+      <hr class="divider">
+      <div class="section">
+        <div class="label">Serviço</div>
+        <div class="value">${order.description}</div>
+      </div>
+      <div class="row">
+        <div>
+          <div class="label">Status</div>
+          <div class="badge">${STATUS_LABELS[order.status]?.label ?? order.status}</div>
+        </div>
+        ${order.dueDate ? `<div><div class="label">Prazo de entrega</div><div class="value">${new Date(order.dueDate).toLocaleDateString("pt-BR")}</div></div>` : ""}
+        ${order.price ? `<div><div class="label">Valor</div><div class="price">R$ ${order.price.toFixed(2)}</div></div>` : ""}
+      </div>
+      ${order.notes ? `<div class="section"><div class="label">Observações</div><div class="value">${order.notes}</div></div>` : ""}
+      <hr class="divider">
+      <div class="section">
+        <div class="label">Data do pedido</div>
+        <div class="value">${new Date(order.createdAt).toLocaleDateString("pt-BR")}</div>
+      </div>
+      <div class="footer">Gerado pelo FinControl</div>
+    </body>
+    </html>
+  `;
+  const win = window.open("", "_blank");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+    win.print();
+  }
+}
+
 // ── Pedidos por cliente ───────────────────────────────
 function ClientOrders({ client }: { client: Client }) {
   const { toast } = useToast();
@@ -206,7 +282,12 @@ function ClientOrders({ client }: { client: Client }) {
 
   const createMutation = useMutation({
     mutationFn: (data: z.infer<typeof orderSchema>) =>
-      createOrder(client.id, data),
+      createOrder(client.id, {
+        description: data.description,
+        notes: data.notes,
+        price: data.price,
+        dueDate: data.dueDate,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders", client.id] });
       toast({ title: "Pedido criado!" });
@@ -233,7 +314,7 @@ function ClientOrders({ client }: { client: Client }) {
 
   const form = useForm<z.infer<typeof orderSchema>>({
     resolver: zodResolver(orderSchema),
-    defaultValues: { description: "", notes: "" },
+    defaultValues: { description: "", notes: "", price: "", dueDate: "" },
   });
 
   const STATUS_FLOW = ["pending", "in_progress", "done", "delivered"];
@@ -276,6 +357,36 @@ function ClientOrders({ client }: { client: Client }) {
                 </FormItem>
               )}
             />
+            <div className="grid grid-cols-2 gap-2">
+              <FormField
+                control={form.control}
+                name="price"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="Valor (R$)"
+                        {...field}
+                        className="h-8 text-sm"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="dueDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input type="date" {...field} className="h-8 text-sm" />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
               name="notes"
@@ -335,17 +446,29 @@ function ClientOrders({ client }: { client: Client }) {
               <p className="text-sm font-medium truncate">
                 {order.description}
               </p>
+              <div className="flex flex-wrap gap-2 mt-1">
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] px-1.5 py-0 ${statusInfo.color}`}
+                >
+                  {statusInfo.label}
+                </Badge>
+                {order.price && (
+                  <span className="text-xs font-medium text-green-700">
+                    R$ {order.price.toFixed(2)}
+                  </span>
+                )}
+                {order.dueDate && (
+                  <span className="text-xs text-muted-foreground">
+                    📅 {new Date(order.dueDate).toLocaleDateString("pt-BR")}
+                  </span>
+                )}
+              </div>
               {order.notes && (
-                <p className="text-xs text-muted-foreground italic">
+                <p className="text-xs text-muted-foreground italic mt-1">
                   {order.notes}
                 </p>
               )}
-              <Badge
-                variant="outline"
-                className={`text-[10px] px-1.5 py-0 mt-1 ${statusInfo.color}`}
-              >
-                {statusInfo.label}
-              </Badge>
             </div>
             <div className="flex items-center gap-1 flex-wrap justify-end">
               {prevStatus && (
@@ -374,6 +497,15 @@ function ClientOrders({ client }: { client: Client }) {
                   <ChevronUp className="h-3 w-3" />
                 </Button>
               )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                title="Exportar PDF"
+                onClick={() => exportPDF(client, order)}
+              >
+                <FileText className="h-3 w-3" />
+              </Button>
               {order.status === "done" && client.phone && (
                 <Button
                   size="sm"
@@ -423,7 +555,11 @@ export default function Clientes() {
     onSuccess: async (newClient, vars) => {
       if (vars.service?.trim()) {
         try {
-          await createOrder(newClient.id, { description: vars.service.trim() });
+          await createOrder(newClient.id, {
+            description: vars.service.trim(),
+            price: vars.servicePrice,
+            dueDate: vars.serviceDueDate,
+          });
           queryClient.invalidateQueries({ queryKey: ["orders", newClient.id] });
           setExpandedId(newClient.id);
         } catch {}
@@ -464,6 +600,8 @@ export default function Clientes() {
       address: "",
       notes: "",
       service: "",
+      servicePrice: "",
+      serviceDueDate: "",
     },
   });
 
@@ -661,7 +799,7 @@ export default function Clientes() {
 
       {/* Modal novo cliente */}
       <Dialog open={showNew} onOpenChange={setShowNew}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Novo cliente</DialogTitle>
           </DialogHeader>
@@ -728,27 +866,66 @@ export default function Clientes() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={newForm.control}
-                name="service"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      Serviço a realizar{" "}
-                      <span className="text-muted-foreground font-normal">
-                        (opcional)
-                      </span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Ex: Lavagem completa, Troca de tela..."
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+
+              <div className="border rounded-lg p-3 space-y-3 bg-muted/20">
+                <p className="text-sm font-medium">
+                  Serviço inicial{" "}
+                  <span className="text-muted-foreground font-normal">
+                    (opcional)
+                  </span>
+                </p>
+                <FormField
+                  control={newForm.control}
+                  name="service"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">
+                        Descrição do serviço
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Ex: Lavagem completa, Troca de tela..."
+                          {...field}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={newForm.control}
+                    name="servicePrice"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Valor (R$)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0,00"
+                            {...field}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={newForm.control}
+                    name="serviceDueDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">
+                          Prazo de entrega
+                        </FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
               <FormField
                 control={newForm.control}
                 name="notes"
