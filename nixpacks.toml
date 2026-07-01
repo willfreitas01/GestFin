@@ -6,3 +6,6 @@ cmds = ["pnpm --filter @workspace/api-server build"]
 
 [start]
 cmd = "pnpm --filter @workspace/api-server start"
+
+[variables]
+PNPM_FLAGS = "--no-frozen-lockfile"

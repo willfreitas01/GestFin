@@ -2,7 +2,8 @@
   "$schema": "https://schema.railway.app/railway-schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "nixpacksConfigPath": "nixpacks.toml"
+    "nixpacksConfigPath": "nixpacks.toml",
+    "buildCommand": ""
   },
   "deploy": {
     "startCommand": "pnpm --filter @workspace/api-server start",
