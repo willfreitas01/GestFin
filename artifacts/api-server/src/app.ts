@@ -204,7 +204,7 @@ app.use("/api", router);
 if (process.env.NODE_ENV === "production") {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
-  const frontendDist = path.resolve(
+  console.log("__dirname:", __dirname); const frontendDist = path.resolve(
     __dirname,
     "../../fincontrol/dist",
   );
