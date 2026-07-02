@@ -1,5 +1,10 @@
 import { Router } from "express";
-import { db, transactionsTable, categoriesTable } from "@workspace/db";
+import {
+  db,
+  transactionsTable,
+  categoriesTable,
+  monthlyReportsTable,
+} from "@workspace/db";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -32,23 +37,40 @@ function last7Days(): string[] {
   return days;
 }
 
+// Retorna a data (YYYY-MM-DD) a partir da qual o Dashboard deve contar,
+// baseado no último fechamento de mês feito pelo usuário (tela Relatório).
+// Se o usuário nunca fechou nenhum mês, retorna null (conta desde sempre).
+async function getDashboardCutoffDate(userId: number): Promise<string | null> {
+  const [latest] = await db
+    .select({ closedAt: monthlyReportsTable.closedAt })
+    .from(monthlyReportsTable)
+    .where(eq(monthlyReportsTable.userId, userId))
+    .orderBy(desc(monthlyReportsTable.closedAt))
+    .limit(1);
+
+  if (!latest) return null;
+
+  // O dashboard passa a contar a partir do dia seguinte ao fechamento.
+  const d = new Date(latest.closedAt);
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 router.get(
   "/dashboard/summary",
   requireAuth,
   async (req, res): Promise<void> => {
     const userId = req.session.userId!;
-    const { startDate, endDate, month } = currentMonth();
+    const { month } = currentMonth();
+    const cutoff = await getDashboardCutoffDate(userId);
+
+    const conditions = [eq(transactionsTable.userId, userId)];
+    if (cutoff) conditions.push(gte(transactionsTable.date, cutoff));
 
     const rows = await db
       .select()
       .from(transactionsTable)
-      .where(
-        and(
-          eq(transactionsTable.userId, userId),
-          gte(transactionsTable.date, startDate),
-          lte(transactionsTable.date, endDate),
-        ),
-      );
+      .where(and(...conditions));
 
     let totalIncome = 0;
     let totalExpenses = 0;
@@ -118,18 +140,15 @@ router.get(
   requireAuth,
   async (req, res): Promise<void> => {
     const userId = req.session.userId!;
-    const { startDate, endDate } = currentMonth();
+    const cutoff = await getDashboardCutoffDate(userId);
+
+    const conditions = [eq(transactionsTable.userId, userId)];
+    if (cutoff) conditions.push(gte(transactionsTable.date, cutoff));
 
     const rows = await db
       .select()
       .from(transactionsTable)
-      .where(
-        and(
-          eq(transactionsTable.userId, userId),
-          gte(transactionsTable.date, startDate),
-          lte(transactionsTable.date, endDate),
-        ),
-      );
+      .where(and(...conditions));
 
     // Busca as categorias do usuário para pegar as cores cadastradas
     const categories = await db
