@@ -290,3 +290,27 @@ export default function Dashboard() {
                             className={`text-[10px] font-normal px-1.5 py-0 ${isIncome ? "text-green-700 bg-green-100 border-green-200" : "text-red-700 bg-red-100 border-red-200"}`}
                           >
                             {tx.category}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      className={`font-semibold ${isIncome ? "text-green-600 dark:text-green-400" : "text-foreground"}`}
+                    >
+                      {isIncome ? "+" : "-"}
+                      {formatCurrency(tx.amount)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>Nenhum lançamento recente encontrado.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
