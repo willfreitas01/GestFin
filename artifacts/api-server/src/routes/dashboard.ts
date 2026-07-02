@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, transactionsTable } from "@workspace/db";
+import { db, transactionsTable, categoriesTable } from "@workspace/db";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -131,21 +131,38 @@ router.get(
         ),
       );
 
-    const byCategory: Record<string, number> = {};
+    // Busca as categorias do usuário para pegar as cores cadastradas
+    const categories = await db
+      .select()
+      .from(categoriesTable)
+      .where(eq(categoriesTable.userId, userId));
+
+    const categoryColors: Record<string, string> = {};
+    for (const c of categories) {
+      categoryColors[c.name] = c.color;
+    }
+
+    const byCategory: Record<string, { total: number; type: string }> = {};
     let grandTotal = 0;
 
     for (const row of rows) {
       const amount = parseFloat(String(row.amount));
-      byCategory[row.category] = (byCategory[row.category] ?? 0) + amount;
+      if (!byCategory[row.category]) {
+        byCategory[row.category] = { total: 0, type: row.type };
+      }
+      byCategory[row.category].total += amount;
       grandTotal += amount;
     }
 
     res.json(
-      Object.entries(byCategory).map(([category, total]) => ({
+      Object.entries(byCategory).map(([category, data]) => ({
         category,
         label: category,
-        total,
-        percentage: grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 0,
+        total: data.total,
+        percentage:
+          grandTotal > 0 ? Math.round((data.total / grandTotal) * 100) : 0,
+        type: data.type,
+        color: categoryColors[category] || null,
       })),
     );
   },
