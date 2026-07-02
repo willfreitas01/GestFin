@@ -208,7 +208,7 @@ if (process.env.NODE_ENV === "production") {
     __dirname,
     "../../fincontrol/dist",
   );
-  app.use(express.static(frontendDist));
+  console.log("frontendDist:", frontendDist); app.use(express.static(frontendDist));
   app.get("/*splat", (_req, res) => {
     res.sendFile(path.join(frontendDist, "index.html"));
   });
