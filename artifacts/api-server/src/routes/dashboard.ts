@@ -40,6 +40,11 @@ function last7Days(): string[] {
 // Retorna a data (YYYY-MM-DD) a partir da qual o Dashboard deve contar,
 // baseado no último fechamento de mês feito pelo usuário (tela Relatório).
 // Se o usuário nunca fechou nenhum mês, retorna null (conta desde sempre).
+//
+// Importante: convertemos o horário do fechamento para o fuso do Brasil
+// (UTC-3, sem horário de verão) antes de calcular o "dia seguinte", para
+// evitar que um fechamento feito à noite seja interpretado como o dia
+// seguinte por causa do UTC do servidor.
 async function getDashboardCutoffDate(userId: number): Promise<string | null> {
   const [latest] = await db
     .select({ closedAt: monthlyReportsTable.closedAt })
@@ -50,10 +55,14 @@ async function getDashboardCutoffDate(userId: number): Promise<string | null> {
 
   if (!latest) return null;
 
+  const brazilTime = new Date(latest.closedAt.getTime() - 3 * 60 * 60 * 1000);
+  const year = brazilTime.getUTCFullYear();
+  const month = brazilTime.getUTCMonth();
+  const day = brazilTime.getUTCDate();
+
   // O dashboard passa a contar a partir do dia seguinte ao fechamento.
-  const d = new Date(latest.closedAt);
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  const cutoff = new Date(Date.UTC(year, month, day + 1));
+  return cutoff.toISOString().slice(0, 10);
 }
 
 router.get(
