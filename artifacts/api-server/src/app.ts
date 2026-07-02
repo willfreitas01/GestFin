@@ -206,7 +206,7 @@ if (process.env.NODE_ENV === "production") {
   const __dirname = path.dirname(__filename);
   const frontendDist = path.resolve(
     __dirname,
-    "../../../artifacts/fincontrol/dist",
+    "../../fincontrol/dist",
   );
   app.use(express.static(frontendDist));
   app.get("/*splat", (_req, res) => {
