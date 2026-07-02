@@ -209,7 +209,7 @@ if (process.env.NODE_ENV === "production") {
     "../../../artifacts/fincontrol/dist",
   );
   app.use(express.static(frontendDist));
-  app.get("*", (_req, res) => {
+  app.get("/*splat", (_req, res) => {
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 }
