@@ -1,8 +1,13 @@
+import { useMemo } from "react";
+import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import {
   useGetDashboardSummary,
   useGetWeeklyChart,
   useGetByCategoryChart,
   useGetRecentTransactions,
+  useListClosedMonths,
 } from "@workspace/api-client-react";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { CATEGORY_CHART_COLORS } from "@/lib/constants";
@@ -26,109 +31,210 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { TrendingUp, TrendingDown, DollarSign, Target } from "lucide-react";
+import {
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  PiggyBank,
+  PackageX,
+  ArrowRight,
+  Receipt,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+
+type InventoryItem = {
+  id: number;
+  name: string;
+  quantity: number;
+  minQuantity: number;
+  lowStock: boolean;
+};
+
+async function fetchInventory(): Promise<InventoryItem[]> {
+  const res = await fetch("/api/inventory", { credentials: "include" });
+  if (!res.ok) throw new Error("Falha ao carregar estoque");
+  return res.json();
+}
+
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  tone,
+  delay,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  tone: "income" | "expense" | "balance" | "rate";
+  delay: number;
+}) {
+  const toneStyles: Record<
+    typeof tone,
+    { chip: string; icon: string }
+  > = {
+    income: {
+      chip: "bg-green-500/10",
+      icon: "text-green-600 dark:text-green-400",
+    },
+    expense: {
+      chip: "bg-red-500/10",
+      icon: "text-red-600 dark:text-red-400",
+    },
+    balance: {
+      chip: "bg-primary/10",
+      icon: "text-primary",
+    },
+    rate: {
+      chip: "bg-blue-500/10",
+      icon: "text-blue-600 dark:text-blue-400",
+    },
+  };
+  const s = toneStyles[tone];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay }}
+    >
+      <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+        <CardContent className="p-5 flex items-center gap-4">
+          <div
+            className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${s.chip}`}
+          >
+            <Icon className={`h-5 w-5 ${s.icon}`} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm text-muted-foreground truncate">{label}</p>
+            <p className="text-xl sm:text-2xl font-bold tabular-nums tracking-tight">
+              {value}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
 
 export default function Dashboard() {
   const { data: summary, isLoading: isLoadingSummary } =
     useGetDashboardSummary();
-  const { data: weeklyChart, isLoading: isLoadingWeekly } = useGetWeeklyChart();
+  const { data: weeklyChart, isLoading: isLoadingWeekly } =
+    useGetWeeklyChart();
   const { data: categoryChart, isLoading: isLoadingCategory } =
     useGetByCategoryChart();
   const { data: recentTransactions, isLoading: isLoadingRecent } =
     useGetRecentTransactions();
+  const { data: closedMonths } = useListClosedMonths();
+  const { data: inventory } = useQuery({
+    queryKey: ["/api/inventory"],
+    queryFn: fetchInventory,
+  });
 
   const isLoading =
     isLoadingSummary || isLoadingWeekly || isLoadingCategory || isLoadingRecent;
 
+  const periodLabel = useMemo(() => {
+    if (!closedMonths || closedMonths.length === 0) {
+      return "Resumo de todos os lançamentos";
+    }
+    const mostRecent = [...closedMonths].sort((a, b) =>
+      b.closedAt.localeCompare(a.closedAt),
+    )[0];
+    const d = new Date(mostRecent.closedAt);
+    return `Resumo desde o fechamento de ${d.toLocaleDateString("pt-BR")}`;
+  }, [closedMonths]);
+
+  const lowStockItems = useMemo(
+    () => (inventory ?? []).filter((item) => item.lowStock),
+    [inventory],
+  );
+
+  const recentToShow = (recentTransactions ?? []).slice(0, 5);
+
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+          <div className="h-8 w-48 bg-muted/50 rounded-md animate-pulse" />
+          <div className="h-4 w-64 bg-muted/40 rounded-md animate-pulse mt-2" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader className="h-16 bg-muted/50 rounded-t-xl" />
-              <CardContent className="h-20" />
-            </Card>
+            <Card key={i} className="h-24 animate-pulse bg-muted/20" />
           ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="h-[400px] animate-pulse bg-muted/20" />
-          <Card className="h-[400px] animate-pulse bg-muted/20" />
+          <Card className="h-[340px] animate-pulse bg-muted/20" />
+          <Card className="h-[340px] animate-pulse bg-muted/20" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Visão Geral</h1>
-          <p className="text-muted-foreground mt-1">
-            Resumo das suas finanças neste mês
-          </p>
-        </div>
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Visão Geral</h1>
+        <p className="text-muted-foreground mt-1">{periodLabel}</p>
       </div>
+
+      {lowStockItems.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+        >
+          <Link
+            href="/estoque"
+            className="flex items-center justify-between gap-3 rounded-lg border border-amber-300/60 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800/60 px-4 py-3 text-sm hover:bg-amber-100/70 dark:hover:bg-amber-900/30 transition-colors"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <PackageX className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span className="truncate text-amber-900 dark:text-amber-200">
+                {lowStockItems.length === 1
+                  ? "1 produto está com estoque baixo"
+                  : `${lowStockItems.length} produtos estão com estoque baixo`}
+              </span>
+            </div>
+            <span className="flex items-center gap-1 text-amber-700 dark:text-amber-300 font-medium shrink-0">
+              Ver estoque <ArrowRight className="h-3.5 w-3.5" />
+            </span>
+          </Link>
+        </motion.div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-green-500 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Receitas do Mês
-            </CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(summary?.totalIncome || 0)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-red-500 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Despesas do Mês
-            </CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(summary?.totalExpenses || 0)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-primary shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Saldo Mês
-            </CardTitle>
-            <DollarSign className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(summary?.balance || 0)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-blue-500 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Taxa de Economia
-            </CardTitle>
-            <Target className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {(summary?.savingsRate || 0).toFixed(1)}%
-            </div>
-          </CardContent>
-        </Card>
+        <KpiCard
+          icon={TrendingUp}
+          label="Receitas"
+          value={formatCurrency(summary?.totalIncome || 0)}
+          tone="income"
+          delay={0}
+        />
+        <KpiCard
+          icon={TrendingDown}
+          label="Despesas"
+          value={formatCurrency(summary?.totalExpenses || 0)}
+          tone="expense"
+          delay={0.05}
+        />
+        <KpiCard
+          icon={Wallet}
+          label="Saldo"
+          value={formatCurrency(summary?.balance || 0)}
+          tone="balance"
+          delay={0.1}
+        />
+        <KpiCard
+          icon={PiggyBank}
+          label="Taxa de Economia"
+          value={`${(summary?.savingsRate || 0).toFixed(1)}%`}
+          tone="rate"
+          delay={0.15}
+        />
       </div>
 
       {/* Charts */}
@@ -144,6 +250,7 @@ export default function Dashboard() {
                 <BarChart
                   data={weeklyChart}
                   margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  barGap={4}
                 >
                   <CartesianGrid
                     strokeDasharray="3 3"
@@ -166,29 +273,32 @@ export default function Dashboard() {
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(val) => `R$ ${val}`}
+                    width={56}
                   />
                   <RechartsTooltip
                     formatter={(value: number) => formatCurrency(value)}
                     labelFormatter={(label) => formatDate(label)}
+                    cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
                     contentStyle={{
-                      borderRadius: "8px",
+                      borderRadius: "10px",
                       border: "1px solid hsl(var(--border))",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
                     }}
                   />
-                  <Legend iconType="circle" />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: 13 }} />
                   <Bar
                     dataKey="income"
                     name="Receitas"
                     fill="hsl(143 58% 40%)"
                     radius={[4, 4, 0, 0]}
-                    maxBarSize={40}
+                    maxBarSize={32}
                   />
                   <Bar
                     dataKey="expenses"
                     name="Despesas"
                     fill="hsl(0 84% 60%)"
                     radius={[4, 4, 0, 0]}
-                    maxBarSize={40}
+                    maxBarSize={32}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -203,7 +313,7 @@ export default function Dashboard() {
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>Composição Geral</CardTitle>
-            <CardDescription>Distribuição por categoria no mês</CardDescription>
+            <CardDescription>Distribuição por categoria</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px]">
             {categoryChart && categoryChart.length > 0 ? (
@@ -235,20 +345,22 @@ export default function Dashboard() {
                   <RechartsTooltip
                     formatter={(value: number) => formatCurrency(value)}
                     contentStyle={{
-                      borderRadius: "8px",
+                      borderRadius: "10px",
                       border: "1px solid hsl(var(--border))",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
                     }}
                   />
                   <Legend
                     layout="vertical"
                     verticalAlign="middle"
                     align="right"
+                    wrapperStyle={{ fontSize: 13 }}
                   />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
-                Sem dados no mês atual.
+                Sem dados no período atual.
               </div>
             )}
           </CardContent>
@@ -259,32 +371,39 @@ export default function Dashboard() {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Lançamentos Recentes</CardTitle>
-          <CardDescription>Suas últimas 5 movimentações</CardDescription>
+          <CardDescription>Suas últimas movimentações</CardDescription>
         </CardHeader>
         <CardContent>
-          {recentTransactions && recentTransactions.length > 0 ? (
-            <div className="space-y-4">
-              {recentTransactions.map((tx) => {
+          {recentToShow.length > 0 ? (
+            <div className="space-y-1">
+              {recentToShow.map((tx, i) => {
                 const isIncome = (tx as any).type === "income";
                 return (
-                  <div
+                  <motion.div
                     key={tx.id}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.2, delay: i * 0.03 }}
+                    className="flex items-center justify-between gap-3 py-3 px-2 rounded-lg hover:bg-muted/50 transition-colors border-b last:border-b-0"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="flex flex-col items-center justify-center w-12 h-12 rounded-full bg-muted">
-                        <span className="text-xs font-medium">
-                          {tx.date.split("-")[2]}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {tx.date.split("-")[1]}
-                        </span>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${
+                          isIncome
+                            ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                            : "bg-red-500/10 text-red-600 dark:text-red-400"
+                        }`}
+                      >
+                        <Receipt className="h-4 w-4" />
                       </div>
-                      <div>
-                        <p className="font-medium text-sm sm:text-base">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">
                           {tx.description}
                         </p>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-muted-foreground">
+                            {formatDate(tx.date)}
+                          </span>
                           <Badge
                             variant="outline"
                             className={`text-[10px] font-normal px-1.5 py-0 ${isIncome ? "text-green-700 bg-green-100 border-green-200" : "text-red-700 bg-red-100 border-red-200"}`}
@@ -295,12 +414,12 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div
-                      className={`font-semibold ${isIncome ? "text-green-600 dark:text-green-400" : "text-foreground"}`}
+                      className={`font-semibold whitespace-nowrap tabular-nums ${isIncome ? "text-green-600 dark:text-green-400" : "text-foreground"}`}
                     >
                       {isIncome ? "+" : "-"}
                       {formatCurrency(tx.amount)}
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
