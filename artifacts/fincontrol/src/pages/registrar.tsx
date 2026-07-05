@@ -244,18 +244,18 @@ export default function Registrar() {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">
-          Registrar Lançamento
+          Transações
         </h1>
         <p className="text-muted-foreground mt-1">
-          Adicione novas receitas ou despesas
+          Gerencie suas transações financeiras
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card>
           <CardHeader>
-            <CardTitle>Novo Lançamento</CardTitle>
-            <CardDescription>Preencha os detalhes da transação</CardDescription>
+            <CardTitle>Nova Transação</CardTitle>
+            <CardDescription>Complete os dados da transação</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -375,7 +375,7 @@ export default function Registrar() {
                 >
                   {createTransaction.isPending
                     ? "Salvando..."
-                    : "Salvar Lançamento"}
+                    : "Salvar Transação"}
                 </Button>
               </form>
             </Form>
@@ -384,7 +384,7 @@ export default function Registrar() {
 
         <Card className="flex flex-col">
           <CardHeader>
-            <CardTitle>Lançamentos de Hoje</CardTitle>
+            <CardTitle>Transações de Hoje</CardTitle>
             <CardDescription>{formatDate(today)}</CardDescription>
           </CardHeader>
           <CardContent className="flex-1 overflow-auto max-h-[500px]">
@@ -434,7 +434,7 @@ export default function Registrar() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
-                <p>Nenhum lançamento registrado hoje.</p>
+                <p>Nenhuma transação registrada hoje.</p>
               </div>
             )}
           </CardContent>
