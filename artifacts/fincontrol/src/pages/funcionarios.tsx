@@ -39,7 +39,6 @@ import {
   ChevronDown,
   Search,
   X,
-  Checkbox,
 } from "lucide-react";
 
 type Employee = {
@@ -267,7 +266,7 @@ export default function Funcionarios() {
         <Card className="shadow-sm">
           <CardContent className="p-5 flex items-center gap-4">
             <div className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center bg-blue-500/10">
-              <Checkbox className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <UserX className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Inativos</p>
