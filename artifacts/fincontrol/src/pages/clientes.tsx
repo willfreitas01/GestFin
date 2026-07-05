@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -37,11 +37,12 @@ import {
   Phone,
   Mail,
   MapPin,
-  ClipboardList,
-  MessageCircle,
   ChevronDown,
   ChevronUp,
   FileText,
+  Search,
+  X,
+  MessageCircle,
 } from "lucide-react";
 
 type Client = {
@@ -65,22 +66,22 @@ type Order = {
   createdAt: string;
 };
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+const STATUS_LABELS: Record<string, { label: string; badge: string }> = {
   pending: {
     label: "Aguardando",
-    color: "bg-yellow-100 text-yellow-800 border-yellow-300",
+    badge: "bg-amber-500/10 text-amber-700 border-amber-300 dark:text-amber-400",
   },
   in_progress: {
     label: "Em andamento",
-    color: "bg-blue-100 text-blue-800 border-blue-300",
+    badge: "bg-blue-500/10 text-blue-700 border-blue-300 dark:text-blue-400",
   },
   done: {
-    label: "Pronto ✅",
-    color: "bg-green-100 text-green-800 border-green-300",
+    label: "Pronto",
+    badge: "bg-green-500/10 text-green-700 border-green-300 dark:text-green-400",
   },
   delivered: {
     label: "Entregue",
-    color: "bg-gray-100 text-gray-600 border-gray-300",
+    badge: "bg-gray-500/10 text-gray-700 border-gray-300 dark:text-gray-400",
   },
 };
 
@@ -108,9 +109,8 @@ async function fetchClients(): Promise<Client[]> {
   if (!res.ok) throw new Error("Erro ao buscar clientes");
   return res.json();
 }
-async function createClient(
-  data: z.infer<typeof clientSchema>,
-): Promise<Client> {
+
+async function createClient(data: z.infer<typeof clientSchema>): Promise<Client> {
   const { service, servicePrice, serviceDueDate, ...clientData } = data;
   const res = await fetch("/api/clients", {
     method: "POST",
@@ -124,6 +124,7 @@ async function createClient(
   }
   return res.json();
 }
+
 async function updateClient(id: number, data: any): Promise<Client> {
   const res = await fetch(`/api/clients/${id}`, {
     method: "PUT",
@@ -137,6 +138,7 @@ async function updateClient(id: number, data: any): Promise<Client> {
   }
   return res.json();
 }
+
 async function deleteClient(id: number): Promise<void> {
   const res = await fetch(`/api/clients/${id}`, {
     method: "DELETE",
@@ -144,6 +146,7 @@ async function deleteClient(id: number): Promise<void> {
   });
   if (!res.ok) throw new Error("Erro ao excluir cliente");
 }
+
 async function fetchOrders(clientId: number): Promise<Order[]> {
   const res = await fetch(`/api/clients/${clientId}/orders`, {
     credentials: "include",
@@ -151,15 +154,8 @@ async function fetchOrders(clientId: number): Promise<Order[]> {
   if (!res.ok) return [];
   return res.json();
 }
-async function createOrder(
-  clientId: number,
-  data: {
-    description: string;
-    notes?: string;
-    price?: string;
-    dueDate?: string;
-  },
-): Promise<Order> {
+
+async function createOrder(clientId: number, data: any): Promise<Order> {
   const res = await fetch(`/api/clients/${clientId}/orders`, {
     method: "POST",
     credentials: "include",
@@ -172,10 +168,8 @@ async function createOrder(
   }
   return res.json();
 }
-async function updateOrderStatus(
-  orderId: number,
-  status: string,
-): Promise<Order> {
+
+async function updateOrderStatus(orderId: number, status: string): Promise<Order> {
   const res = await fetch(`/api/orders/${orderId}`, {
     method: "PUT",
     credentials: "include",
@@ -188,6 +182,7 @@ async function updateOrderStatus(
   }
   return res.json();
 }
+
 async function deleteOrder(orderId: number): Promise<void> {
   const res = await fetch(`/api/orders/${orderId}`, {
     method: "DELETE",
@@ -269,7 +264,7 @@ function exportPDF(client: Client, order: Order) {
   }
 }
 
-// ── Pedidos por cliente ───────────────────────────────
+// ── Pedidos por cliente ──────────────────────────────
 function ClientOrders({ client }: { client: Client }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -282,15 +277,10 @@ function ClientOrders({ client }: { client: Client }) {
 
   const createMutation = useMutation({
     mutationFn: (data: z.infer<typeof orderSchema>) =>
-      createOrder(client.id, {
-        description: data.description,
-        notes: data.notes,
-        price: data.price,
-        dueDate: data.dueDate,
-      }),
+      createOrder(client.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders", client.id] });
-      toast({ title: "Pedido criado!" });
+      toast({ title: "Pedido criado com sucesso!" });
       setShowNew(false);
       form.reset();
     },
@@ -320,18 +310,19 @@ function ClientOrders({ client }: { client: Client }) {
   const STATUS_FLOW = ["pending", "in_progress", "done", "delivered"];
 
   return (
-    <div className="mt-3 border-t pt-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Pedidos
-        </p>
+    <div className="mt-6 space-y-4 pt-4 border-t">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-foreground">
+            {orders.length} {orders.length === 1 ? "pedido" : "pedidos"}
+          </p>
+        </div>
         <Button
           variant="outline"
           size="sm"
-          className="h-7 text-xs"
           onClick={() => setShowNew(!showNew)}
         >
-          <Plus className="h-3 w-3 mr-1" /> Novo pedido
+          <Plus className="h-3.5 w-3.5 mr-1.5" /> Novo pedido
         </Button>
       </div>
 
@@ -339,7 +330,7 @@ function ClientOrders({ client }: { client: Client }) {
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit((d) => createMutation.mutate(d))}
-            className="space-y-2 bg-muted/30 rounded-lg p-3"
+            className="space-y-3 bg-muted/30 rounded-lg p-4 border"
           >
             <FormField
               control={form.control}
@@ -387,22 +378,7 @@ function ClientOrders({ client }: { client: Client }) {
                 )}
               />
             </div>
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input
-                      placeholder="Observações (opcional)"
-                      {...field}
-                      className="h-8 text-sm"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-1">
               <Button
                 type="button"
                 variant="ghost"
@@ -418,7 +394,7 @@ function ClientOrders({ client }: { client: Client }) {
                 className="h-7 text-xs"
                 disabled={createMutation.isPending}
               >
-                {createMutation.isPending ? "Salvando..." : "Criar pedido"}
+                {createMutation.isPending ? "Salvando..." : "Criar"}
               </Button>
             </div>
           </form>
@@ -426,112 +402,94 @@ function ClientOrders({ client }: { client: Client }) {
       )}
 
       {orders.length === 0 && !showNew && (
-        <p className="text-xs text-muted-foreground italic">
-          Nenhum pedido ainda.
+        <p className="text-xs text-muted-foreground italic py-2">
+          Nenhum pedido ainda
         </p>
       )}
 
-      {orders.map((order) => {
-        const statusInfo = STATUS_LABELS[order.status];
-        const currentIdx = STATUS_FLOW.indexOf(order.status);
-        const nextStatus = STATUS_FLOW[currentIdx + 1];
-        const prevStatus = STATUS_FLOW[currentIdx - 1];
+      <div className="space-y-2">
+        {orders.map((order) => {
+          const statusInfo = STATUS_LABELS[order.status];
+          const currentIdx = STATUS_FLOW.indexOf(order.status);
+          const nextStatus = STATUS_FLOW[currentIdx + 1];
 
-        return (
-          <div
-            key={order.id}
-            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border bg-card"
-          >
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">
-                {order.description}
-              </p>
-              <div className="flex flex-wrap gap-2 mt-1">
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] px-1.5 py-0 ${statusInfo.color}`}
-                >
-                  {statusInfo.label}
-                </Badge>
-                {order.price && (
-                  <span className="text-xs font-medium text-green-700">
-                    R$ {order.price.toFixed(2)}
-                  </span>
-                )}
-                {order.dueDate && (
-                  <span className="text-xs text-muted-foreground">
-                    📅 {new Date(order.dueDate).toLocaleDateString("pt-BR")}
-                  </span>
-                )}
-              </div>
-              {order.notes && (
-                <p className="text-xs text-muted-foreground italic mt-1">
-                  {order.notes}
+          return (
+            <div
+              key={order.id}
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border bg-card hover:bg-muted/40 transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {order.description}
                 </p>
-              )}
-            </div>
-            <div className="flex items-center gap-1 flex-wrap justify-end">
-              {prevStatus && (
+                <div className="flex flex-wrap gap-2 mt-1">
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] px-2 py-0.5 ${statusInfo.badge}`}
+                  >
+                    {statusInfo.label}
+                  </Badge>
+                  {order.price && (
+                    <span className="text-xs font-medium text-green-700 dark:text-green-400">
+                      R$ {order.price.toFixed(2)}
+                    </span>
+                  )}
+                  {order.dueDate && (
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(order.dueDate).toLocaleDateString("pt-BR")}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1 justify-end">
+                {nextStatus && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs px-2"
+                    onClick={() =>
+                      updateMutation.mutate({ id: order.id, status: nextStatus })
+                    }
+                  >
+                    <ChevronUp className="h-3 w-3 mr-0.5" /> Avançar
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7"
-                  title="Voltar status"
-                  onClick={() =>
-                    updateMutation.mutate({ id: order.id, status: prevStatus })
-                  }
+                  title="Exportar PDF"
+                  onClick={() => exportPDF(client, order)}
                 >
-                  <ChevronDown className="h-3 w-3" />
+                  <FileText className="h-3.5 w-3.5" />
                 </Button>
-              )}
-              {nextStatus && (
+                {order.status === "done" && client.phone && (
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs bg-green-600 hover:bg-green-700 px-2"
+                    onClick={() =>
+                      sendWhatsApp(client.phone!, client.name, order.description)
+                    }
+                  >
+                    <MessageCircle className="h-3 w-3 mr-0.5" /> WhatsApp
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
-                  title="Avançar status"
-                  onClick={() =>
-                    updateMutation.mutate({ id: order.id, status: nextStatus })
-                  }
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  onClick={() => {
+                    if (confirm("Remover pedido?"))
+                      deleteMutation.mutate(order.id);
+                  }}
                 >
-                  <ChevronUp className="h-3 w-3" />
+                  <Trash2 className="h-3.5 w-3.5" />
                 </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                title="Exportar PDF"
-                onClick={() => exportPDF(client, order)}
-              >
-                <FileText className="h-3 w-3" />
-              </Button>
-              {order.status === "done" && client.phone && (
-                <Button
-                  size="sm"
-                  className="h-7 text-xs bg-green-600 hover:bg-green-700"
-                  onClick={() =>
-                    sendWhatsApp(client.phone!, client.name, order.description)
-                  }
-                >
-                  <MessageCircle className="h-3 w-3 mr-1" /> WhatsApp
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                onClick={() => {
-                  if (confirm("Remover pedido?"))
-                    deleteMutation.mutate(order.id);
-                }}
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -629,11 +587,11 @@ export default function Clientes() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>
           <p className="text-muted-foreground mt-1">
-            Gerencie sua base de clientes e pedidos
+            Gerencie seus clientes e pedidos
           </p>
         </div>
         <Button onClick={() => setShowNew(true)}>
@@ -642,41 +600,72 @@ export default function Clientes() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Total de clientes</p>
-            <p className="text-2xl font-bold mt-1">{clients.length}</p>
+        <Card className="shadow-sm">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center bg-primary/10">
+              <Users className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Total de clientes</p>
+              <p className="text-2xl font-bold">{clients.length}</p>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Com telefone</p>
-            <p className="text-2xl font-bold mt-1">
-              {clients.filter((c) => c.phone).length}
-            </p>
+        <Card className="shadow-sm">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center bg-blue-500/10">
+              <Phone className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Com telefone</p>
+              <p className="text-2xl font-bold">
+                {clients.filter((c) => c.phone).length}
+              </p>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Com e-mail</p>
-            <p className="text-2xl font-bold mt-1">
-              {clients.filter((c) => c.email).length}
-            </p>
+        <Card className="shadow-sm">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center bg-green-500/10">
+              <Mail className="h-5 w-5 text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Com e-mail</p>
+              <p className="text-2xl font-bold">
+                {clients.filter((c) => c.email).length}
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Lista de clientes</CardTitle>
-          <CardDescription>
-            <Input
-              placeholder="Buscar por nome, telefone ou e-mail..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="mt-2 max-w-sm"
-            />
-          </CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <CardTitle>Clientes</CardTitle>
+              <CardDescription>Seus clientes e seus pedidos</CardDescription>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar cliente..."
+                className="pl-8 pr-8"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="Limpar busca"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -696,7 +685,11 @@ export default function Clientes() {
                   ? "Nenhum cliente encontrado"
                   : "Nenhum cliente cadastrado"}
               </p>
-              <p className="text-sm">Clique em "Novo cliente" para começar.</p>
+              <p className="text-sm">
+                {search
+                  ? "Tente ajustar a busca"
+                  : 'Clique em "Novo cliente" para começar.'}
+              </p>
             </div>
           ) : (
             <div className="divide-y">
@@ -712,7 +705,7 @@ export default function Clientes() {
                         setExpandedId(expandedId === c.id ? null : c.id)
                       }
                     >
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                         <span className="text-sm font-bold text-primary">
                           {c.name
                             .split(" ")
@@ -722,11 +715,11 @@ export default function Clientes() {
                             .toUpperCase()}
                         </span>
                       </div>
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium">{c.name}</p>
+                          <p className="font-medium truncate">{c.name}</p>
                           <ChevronDown
-                            className={`h-4 w-4 text-muted-foreground transition-transform ${expandedId === c.id ? "rotate-180" : ""}`}
+                            className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${expandedId === c.id ? "rotate-180" : ""}`}
                           />
                         </div>
                         <div className="flex flex-wrap gap-3 mt-1">
@@ -749,11 +742,6 @@ export default function Clientes() {
                             </span>
                           )}
                         </div>
-                        {c.notes && (
-                          <p className="text-xs text-muted-foreground mt-1 italic">
-                            {c.notes}
-                          </p>
-                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 justify-end">
@@ -761,17 +749,7 @@ export default function Clientes() {
                         variant="outline"
                         size="icon"
                         className="h-8 w-8"
-                        title="Ver pedidos"
-                        onClick={() =>
-                          setExpandedId(expandedId === c.id ? null : c.id)
-                        }
-                      >
-                        <ClipboardList className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
+                        title="Editar"
                         onClick={() => openEdit(c)}
                       >
                         <Pencil className="h-4 w-4" />
@@ -780,6 +758,7 @@ export default function Clientes() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        title="Excluir"
                         onClick={() => {
                           if (confirm(`Remover ${c.name}?`))
                             deleteMutation.mutate(c.id);
@@ -860,7 +839,10 @@ export default function Clientes() {
                   <FormItem>
                     <FormLabel>Endereço</FormLabel>
                     <FormControl>
-                      <Input placeholder="Rua, número, bairro..." {...field} />
+                      <Input
+                        placeholder="Rua, número, bairro..."
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -884,7 +866,7 @@ export default function Clientes() {
                       </FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Ex: Lavagem completa, Troca de tela..."
+                          placeholder="Ex: Lavagem completa..."
                           {...field}
                         />
                       </FormControl>
