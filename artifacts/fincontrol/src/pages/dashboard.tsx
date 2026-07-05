@@ -252,16 +252,6 @@ export default function Dashboard() {
                   margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                   barGap={4}
                 >
-                  <defs>
-                    <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(143 58% 50%)" />
-                      <stop offset="100%" stopColor="hsl(143 58% 35%)" />
-                    </linearGradient>
-                    <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(0 84% 70%)" />
-                      <stop offset="100%" stopColor="hsl(0 84% 50%)" />
-                    </linearGradient>
-                  </defs>
                   <CartesianGrid
                     strokeDasharray="3 3"
                     vertical={false}
@@ -299,14 +289,14 @@ export default function Dashboard() {
                   <Bar
                     dataKey="income"
                     name="Receitas"
-                    fill="url(#incomeGradient)"
+                    fill="hsl(143 58% 40%)"
                     radius={[4, 4, 0, 0]}
                     maxBarSize={32}
                   />
                   <Bar
                     dataKey="expenses"
                     name="Despesas"
-                    fill="url(#expenseGradient)"
+                    fill="hsl(0 84% 60%)"
                     radius={[4, 4, 0, 0]}
                     maxBarSize={32}
                   />
@@ -325,60 +315,49 @@ export default function Dashboard() {
             <CardTitle>Composição Geral</CardTitle>
             <CardDescription>Distribuição por categoria</CardDescription>
           </CardHeader>
-          <CardContent className="h-[300px] relative">
+          <CardContent className="h-[300px]">
             {categoryChart && categoryChart.length > 0 ? (
-              <>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={categoryChart}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={70}
-                      outerRadius={100}
-                      paddingAngle={2}
-                      dataKey="total"
-                      nameKey="label"
-                      hoverOffset={8}
-                    >
-                      {categoryChart.map((entry: any, index) => (
-                        <Cell
-                          key={entry.category}
-                          fill={
-                            entry.color ||
-                            CATEGORY_CHART_COLORS[entry.category] ||
-                            (entry.type === "income"
-                              ? "hsl(143 58% 40%)"
-                              : "hsl(0 84% 60%)")
-                          }
-                        />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip
-                      formatter={(value: number) => formatCurrency(value)}
-                      contentStyle={{
-                        borderRadius: "10px",
-                        border: "1px solid hsl(var(--border))",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-                      }}
-                    />
-                    <Legend
-                      layout="vertical"
-                      verticalAlign="middle"
-                      align="right"
-                      wrapperStyle={{ fontSize: 13 }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <p className="text-xs text-muted-foreground">Total</p>
-                  <p className="text-2xl font-bold text-foreground tabular-nums">
-                    {formatCurrency(
-                      (categoryChart as any[]).reduce((sum, c) => sum + c.total, 0),
-                    )}
-                  </p>
-                </div>
-              </>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryChart}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={70}
+                    outerRadius={100}
+                    paddingAngle={2}
+                    dataKey="total"
+                    nameKey="label"
+                  >
+                    {categoryChart.map((entry: any, index) => (
+                      <Cell
+                        key={entry.category}
+                        fill={
+                          entry.color ||
+                          CATEGORY_CHART_COLORS[entry.category] ||
+                          (entry.type === "income"
+                            ? "hsl(143 58% 40%)"
+                            : "hsl(0 84% 60%)")
+                        }
+                      />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{
+                      borderRadius: "10px",
+                      border: "1px solid hsl(var(--border))",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                    }}
+                  />
+                  <Legend
+                    layout="vertical"
+                    verticalAlign="middle"
+                    align="right"
+                    wrapperStyle={{ fontSize: 13 }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
             ) : (
               <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
                 Sem dados no período atual.
