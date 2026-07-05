@@ -137,7 +137,7 @@ export default function Dashboard() {
 
   const periodLabel = useMemo(() => {
     if (!closedMonths || closedMonths.length === 0) {
-      return "Resumo de todos os lançamentos";
+      return "Análise financeira em tempo real";
     }
     const mostRecent = [...closedMonths].sort((a, b) =>
       b.closedAt.localeCompare(a.closedAt),
@@ -371,7 +371,7 @@ export default function Dashboard() {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Lançamentos Recentes</CardTitle>
-          <CardDescription>Suas últimas movimentações</CardDescription>
+          <CardDescription>Últimas transações</CardDescription>
         </CardHeader>
         <CardContent>
           {recentToShow.length > 0 ? (
