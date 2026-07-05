@@ -29,7 +29,18 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Plus, Trash2, UserCheck, UserX, Pencil } from "lucide-react";
+import {
+  Users,
+  Plus,
+  Trash2,
+  UserCheck,
+  UserX,
+  Pencil,
+  ChevronDown,
+  Search,
+  X,
+  Checkbox,
+} from "lucide-react";
 
 type Employee = {
   id: number;
@@ -47,10 +58,10 @@ const employeeSchema = z.object({
   name: z.string().min(1, "Nome obrigatório"),
   email: z.string().email("E-mail inválido"),
   password: z.string().min(4, "Senha mínima de 4 caracteres"),
-  canSellInventory: z.boolean(),
-  canRegisterSale: z.boolean(),
-  canViewReports: z.boolean(),
-  canViewHistory: z.boolean(),
+  canSellInventory: z.boolean().default(false),
+  canRegisterSale: z.boolean().default(false),
+  canViewReports: z.boolean().default(false),
+  canViewHistory: z.boolean().default(false),
 });
 
 const editSchema = z.object({
@@ -63,6 +74,7 @@ const editSchema = z.object({
   canViewHistory: z.boolean(),
 });
 
+// ── API ──────────────────────────────────────────────
 async function fetchEmployees(): Promise<Employee[]> {
   const res = await fetch("/api/employees", { credentials: "include" });
   if (!res.ok) throw new Error("Erro ao buscar funcionários");
@@ -110,34 +122,37 @@ async function deleteEmployee(id: number): Promise<void> {
   if (!res.ok) throw new Error("Erro ao remover funcionário");
 }
 
-const PERMS = [
+const PERMISSIONS = [
   {
     key: "canSellInventory",
     label: "Dar baixa no estoque",
-    sub: "Pode dar saída de itens do estoque",
+    description: "Permitir remover itens do estoque",
   },
   {
     key: "canRegisterSale",
-    label: "Registrar venda",
-    sub: "Pode registrar vendas avulsas",
+    label: "Registrar vendas",
+    description: "Permitir registrar vendas avulsas",
   },
   {
     key: "canViewReports",
     label: "Ver relatórios",
-    sub: "Acesso à tela de relatórios",
+    description: "Acesso à aba de relatórios",
   },
   {
     key: "canViewHistory",
     label: "Ver histórico",
-    sub: "Acesso ao histórico de transações",
+    description: "Acesso ao histórico de transações",
   },
 ] as const;
 
+// ── Página principal ──────────────────────────────────
 export default function Funcionarios() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showNew, setShowNew] = useState(false);
   const [editEmp, setEditEmp] = useState<Employee | null>(null);
+  const [search, setSearch] = useState("");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ["employees"],
@@ -148,7 +163,7 @@ export default function Funcionarios() {
     mutationFn: createEmployee,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
-      toast({ title: "Funcionário criado com sucesso." });
+      toast({ title: "Funcionário cadastrado com sucesso." });
       setShowNew(false);
       newForm.reset();
     },
@@ -172,13 +187,7 @@ export default function Funcionarios() {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       toast({ title: "Funcionário removido." });
     },
-    onError: () =>
-      toast({ variant: "destructive", title: "Erro ao remover funcionário." }),
   });
-
-  const toggleActive = (emp: Employee) => {
-    updateMutation.mutate({ id: emp.id, data: { active: !emp.active } });
-  };
 
   const newForm = useForm<z.infer<typeof employeeSchema>>({
     resolver: zodResolver(employeeSchema),
@@ -186,7 +195,7 @@ export default function Funcionarios() {
       name: "",
       email: "",
       password: "",
-      canSellInventory: true,
+      canSellInventory: false,
       canRegisterSale: false,
       canViewReports: false,
       canViewHistory: false,
@@ -197,28 +206,34 @@ export default function Funcionarios() {
     resolver: zodResolver(editSchema),
   });
 
-  const openEdit = (emp: Employee) => {
-    setEditEmp(emp);
+  const openEdit = (e: Employee) => {
+    setEditEmp(e);
     editForm.reset({
-      name: emp.name,
-      email: emp.email,
+      name: e.name,
+      email: e.email,
       password: "",
-      canSellInventory: emp.canSellInventory,
-      canRegisterSale: emp.canRegisterSale,
-      canViewReports: emp.canViewReports,
-      canViewHistory: emp.canViewHistory,
+      canSellInventory: e.canSellInventory,
+      canRegisterSale: e.canRegisterSale,
+      canViewReports: e.canViewReports,
+      canViewHistory: e.canViewHistory,
     });
   };
 
-  const ativos = employees.filter((e) => e.active).length;
+  const filtered = employees.filter(
+    (e) =>
+      e.name.toLowerCase().includes(search.toLowerCase()) ||
+      e.email.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const activeCount = employees.filter((e) => e.active).length;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Funcionários</h1>
           <p className="text-muted-foreground mt-1">
-            Gerencie acessos da sua equipe
+            Gerencie permissões e acessos
           </p>
         </div>
         <Button onClick={() => setShowNew(true)}>
@@ -226,37 +241,71 @@ export default function Funcionarios() {
         </Button>
       </div>
 
-      {/* Cards resumo */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Total</p>
-            <p className="text-2xl font-bold mt-1">{employees.length}</p>
+        <Card className="shadow-sm">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center bg-primary/10">
+              <Users className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Total de funcionários</p>
+              <p className="text-2xl font-bold">{employees.length}</p>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Ativos</p>
-            <p className="text-2xl font-bold mt-1 text-green-600">{ativos}</p>
+        <Card className="shadow-sm">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center bg-green-500/10">
+              <UserCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Ativos</p>
+              <p className="text-2xl font-bold">{activeCount}</p>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Inativos</p>
-            <p className="text-2xl font-bold mt-1">
-              {employees.length - ativos}
-            </p>
+        <Card className="shadow-sm">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center bg-blue-500/10">
+              <Checkbox className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Inativos</p>
+              <p className="text-2xl font-bold">{employees.length - activeCount}</p>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Lista */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Equipe</CardTitle>
-          <CardDescription>
-            Clique em editar para ajustar permissões ou senha
-          </CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <CardTitle>Funcionários</CardTitle>
+              <CardDescription>
+                Gerencie seus funcionários e permissões
+              </CardDescription>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar funcionário..."
+                className="pl-8 pr-8"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label="Limpar busca"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -268,120 +317,148 @@ export default function Funcionarios() {
                 />
               ))}
             </div>
-          ) : employees.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Users className="h-12 w-12 text-muted-foreground/50 mb-4" />
               <p className="text-lg font-medium">
-                Nenhum funcionário cadastrado
+                {search
+                  ? "Nenhum funcionário encontrado"
+                  : "Nenhum funcionário cadastrado"}
               </p>
               <p className="text-sm">
-                Clique em "Novo funcionário" para começar.
+                {search
+                  ? "Tente ajustar a busca"
+                  : 'Clique em "Novo funcionário" para começar.'}
               </p>
             </div>
           ) : (
             <div className="divide-y">
-              {employees.map((emp) => (
-                <div
-                  key={emp.id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-4 hover:bg-muted/30 transition-colors gap-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-bold text-primary">
-                        {emp.name
-                          .split(" ")
-                          .slice(0, 2)
-                          .map((w) => w[0])
-                          .join("")
-                          .toUpperCase()}
-                      </span>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{emp.name}</p>
-                        <Badge
-                          variant={emp.active ? "default" : "secondary"}
-                          className="text-[10px] px-1.5 py-0"
+              {filtered.map((e) => (
+                <div key={e.id} className="p-4 hover:bg-muted/30 transition-colors">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div
+                      className="flex items-center gap-3 cursor-pointer flex-1"
+                      onClick={() =>
+                        setExpandedId(expandedId === e.id ? null : e.id)
+                      }
+                    >
+                      <div
+                        className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                          e.active
+                            ? "bg-green-500/10"
+                            : "bg-gray-500/10"
+                        }`}
+                      >
+                        <span
+                          className={`text-sm font-bold ${
+                            e.active
+                              ? "text-green-600 dark:text-green-400"
+                              : "text-gray-600 dark:text-gray-400"
+                          }`}
                         >
-                          {emp.active ? "Ativo" : "Inativo"}
-                        </Badge>
+                          {e.name
+                            .split(" ")
+                            .slice(0, 2)
+                            .map((w) => w[0])
+                            .join("")
+                            .toUpperCase()}
+                        </span>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {emp.email}
-                      </p>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {emp.canSellInventory && (
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium truncate">{e.name}</p>
                           <Badge
                             variant="outline"
-                            className="text-[10px] px-1.5 py-0 text-green-700 border-green-300"
+                            className={`text-[10px] px-1.5 py-0.5 ${
+                              e.active
+                                ? "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400"
+                                : "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-900/30 dark:text-gray-400"
+                            }`}
                           >
-                            Estoque
+                            {e.active ? "Ativo" : "Inativo"}
                           </Badge>
-                        )}
-                        {emp.canRegisterSale && (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1.5 py-0 text-blue-700 border-blue-300"
-                          >
-                            Vendas
-                          </Badge>
-                        )}
-                        {emp.canViewReports && (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1.5 py-0"
-                          >
-                            Relatórios
-                          </Badge>
-                        )}
-                        {emp.canViewHistory && (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1.5 py-0"
-                          >
-                            Histórico
-                          </Badge>
-                        )}
+                          {expandedId === e.id && (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground rotate-180 ml-auto" />
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {e.email}
+                        </p>
                       </div>
                     </div>
+                    <div className="flex items-center gap-2 justify-end">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        title="Editar"
+                        onClick={() => openEdit(e)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        title="Excluir"
+                        onClick={() => {
+                          if (confirm(`Remover ${e.name}?`))
+                            deleteMutation.mutate(e.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 justify-end">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      title="Editar"
-                      onClick={() => openEdit(emp)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      title={emp.active ? "Desativar" : "Ativar"}
-                      onClick={() => toggleActive(emp)}
-                      disabled={updateMutation.isPending}
-                    >
-                      {emp.active ? (
-                        <UserX className="h-4 w-4 text-red-500" />
-                      ) : (
-                        <UserCheck className="h-4 w-4 text-green-600" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => {
-                        if (confirm(`Remover ${emp.name}?`))
-                          deleteMutation.mutate(emp.id);
-                      }}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+
+                  {expandedId === e.id && (
+                    <div className="mt-4 pt-4 border-t space-y-2">
+                      <p className="text-xs font-medium text-foreground mb-3">
+                        Permissões:
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {PERMISSIONS.map((perm) => {
+                          const hasPermission =
+                            e[perm.key as keyof Employee];
+                          return (
+                            <div
+                              key={perm.key}
+                              className={`p-2 rounded border text-xs ${
+                                hasPermission
+                                  ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
+                                  : "bg-gray-50 border-gray-200 dark:bg-gray-900/20 dark:border-gray-800"
+                              }`}
+                            >
+                              <div className="flex items-start gap-2">
+                                <div
+                                  className={`mt-0.5 w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${
+                                    hasPermission
+                                      ? "bg-green-600 border-green-600"
+                                      : "border-gray-300 dark:border-gray-600"
+                                  }`}
+                                >
+                                  {hasPermission && (
+                                    <span className="text-white text-[8px]">✓</span>
+                                  )}
+                                </div>
+                                <div>
+                                  <p
+                                    className={`font-medium ${
+                                      hasPermission
+                                        ? "text-green-700 dark:text-green-400"
+                                        : "text-gray-700 dark:text-gray-400"
+                                    }`}
+                                  >
+                                    {perm.label}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -391,7 +468,7 @@ export default function Funcionarios() {
 
       {/* Modal novo funcionário */}
       <Dialog open={showNew} onOpenChange={setShowNew}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Novo funcionário</DialogTitle>
           </DialogHeader>
@@ -405,9 +482,9 @@ export default function Funcionarios() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nome completo</FormLabel>
+                    <FormLabel>Nome completo *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Ex: Maria Oliveira" {...field} />
+                      <Input placeholder="Ex: João Silva" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -418,11 +495,11 @@ export default function Funcionarios() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>E-mail de acesso</FormLabel>
+                    <FormLabel>E-mail *</FormLabel>
                     <FormControl>
                       <Input
                         type="email"
-                        placeholder="func@loja.com"
+                        placeholder="joao@exemplo.com"
                         {...field}
                       />
                     </FormControl>
@@ -435,46 +512,47 @@ export default function Funcionarios() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Senha inicial</FormLabel>
+                    <FormLabel>Senha *</FormLabel>
                     <FormControl>
-                      <Input type="text" placeholder="Ex: func123" {...field} />
+                      <Input type="password" placeholder="••••••" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <div>
-                <p className="text-sm font-medium mb-3">Permissões de acesso</p>
-                <div className="space-y-3">
-                  {PERMS.map((p) => (
+
+              <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+                <p className="text-sm font-medium">Permissões</p>
+                {PERMISSIONS.map((perm) => (
+                  <div key={perm.key} className="flex items-start gap-3">
                     <FormField
-                      key={p.key}
                       control={newForm.control}
-                      name={p.key}
+                      name={perm.key as keyof z.infer<typeof employeeSchema>}
                       render={({ field }) => (
-                        <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                          <div>
-                            <FormLabel className="font-medium cursor-pointer">
-                              {p.label}
-                            </FormLabel>
-                            <p className="text-xs text-muted-foreground">
-                              {p.sub}
-                            </p>
-                          </div>
+                        <FormItem className="flex items-start gap-3 space-y-0 mt-0">
                           <FormControl>
                             <input
                               type="checkbox"
-                              checked={field.value}
+                              checked={field.value as boolean}
                               onChange={field.onChange}
-                              className="w-4 h-4 accent-primary cursor-pointer"
+                              className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                             />
                           </FormControl>
+                          <div>
+                            <FormLabel className="text-sm font-normal cursor-pointer">
+                              {perm.label}
+                            </FormLabel>
+                            <p className="text-xs text-muted-foreground">
+                              {perm.description}
+                            </p>
+                          </div>
                         </FormItem>
                       )}
                     />
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
+
               <DialogFooter>
                 <Button
                   type="button"
@@ -484,9 +562,7 @@ export default function Funcionarios() {
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending
-                    ? "Criando..."
-                    : "Criar funcionário"}
+                  {createMutation.isPending ? "Salvando..." : "Criar funcionário"}
                 </Button>
               </DialogFooter>
             </form>
@@ -496,7 +572,7 @@ export default function Funcionarios() {
 
       {/* Modal editar funcionário */}
       <Dialog open={!!editEmp} onOpenChange={() => setEditEmp(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar — {editEmp?.name}</DialogTitle>
           </DialogHeader>
@@ -504,9 +580,7 @@ export default function Funcionarios() {
             <form
               onSubmit={editForm.handleSubmit((d) => {
                 if (!editEmp) return;
-                const payload: any = { ...d };
-                if (!payload.password) delete payload.password;
-                updateMutation.mutate({ id: editEmp.id, data: payload });
+                updateMutation.mutate({ id: editEmp.id, data: d });
               })}
               className="space-y-4"
             >
@@ -515,7 +589,7 @@ export default function Funcionarios() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nome completo</FormLabel>
+                    <FormLabel>Nome completo *</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -528,7 +602,7 @@ export default function Funcionarios() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>E-mail</FormLabel>
+                    <FormLabel>E-mail *</FormLabel>
                     <FormControl>
                       <Input type="email" {...field} />
                     </FormControl>
@@ -541,55 +615,47 @@ export default function Funcionarios() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>
-                      Nova senha{" "}
-                      <span className="text-muted-foreground font-normal">
-                        (deixe em branco para manter)
-                      </span>
-                    </FormLabel>
+                    <FormLabel>Nova senha (deixe em branco para não alterar)</FormLabel>
                     <FormControl>
-                      <Input
-                        type="text"
-                        placeholder="Nova senha..."
-                        {...field}
-                      />
+                      <Input type="password" placeholder="••••••" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <div>
-                <p className="text-sm font-medium mb-3">Permissões</p>
-                <div className="space-y-3">
-                  {PERMS.map((p) => (
+
+              <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+                <p className="text-sm font-medium">Permissões</p>
+                {PERMISSIONS.map((perm) => (
+                  <div key={perm.key} className="flex items-start gap-3">
                     <FormField
-                      key={p.key}
                       control={editForm.control}
-                      name={p.key}
+                      name={perm.key as keyof z.infer<typeof editSchema>}
                       render={({ field }) => (
-                        <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                          <div>
-                            <FormLabel className="font-medium cursor-pointer">
-                              {p.label}
-                            </FormLabel>
-                            <p className="text-xs text-muted-foreground">
-                              {p.sub}
-                            </p>
-                          </div>
+                        <FormItem className="flex items-start gap-3 space-y-0 mt-0">
                           <FormControl>
                             <input
                               type="checkbox"
-                              checked={field.value}
+                              checked={field.value as boolean}
                               onChange={field.onChange}
-                              className="w-4 h-4 accent-primary cursor-pointer"
+                              className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                             />
                           </FormControl>
+                          <div>
+                            <FormLabel className="text-sm font-normal cursor-pointer">
+                              {perm.label}
+                            </FormLabel>
+                            <p className="text-xs text-muted-foreground">
+                              {perm.description}
+                            </p>
+                          </div>
                         </FormItem>
                       )}
                     />
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
+
               <DialogFooter>
                 <Button
                   type="button"
@@ -599,9 +665,7 @@ export default function Funcionarios() {
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending
-                    ? "Salvando..."
-                    : "Salvar alterações"}
+                  {updateMutation.isPending ? "Salvando..." : "Salvar alterações"}
                 </Button>
               </DialogFooter>
             </form>
