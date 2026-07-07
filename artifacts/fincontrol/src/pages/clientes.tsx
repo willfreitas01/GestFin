@@ -373,131 +373,155 @@ function ClientOrders({ client }: { client: Client }) {
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit((d) => createMutation.mutate(d))}
-            className="space-y-3 bg-muted/30 rounded-lg p-4 border"
+            className="space-y-5 bg-muted/30 rounded-lg p-5 border"
           >
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input
-                      placeholder="Descrição do serviço..."
-                      {...field}
-                      className="h-8 text-sm"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="equipment"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input
-                      placeholder="Equipamento (ex: iPhone 15 Pro)"
-                      {...field}
-                      className="h-8 text-sm"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="reportedIssue"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input
-                      placeholder="Defeito relatado pelo cliente"
-                      {...field}
-                      className="h-8 text-sm"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="diagnosis"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input
-                      placeholder="Diagnóstico técnico"
-                      {...field}
-                      className="h-8 text-sm"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="technicianName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormControl>
-                    <Input
-                      placeholder="Técnico responsável"
-                      {...field}
-                      className="h-8 text-sm"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            <div className="grid grid-cols-2 gap-2">
+            {/* Seção: Serviço */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Serviço
+              </p>
               <FormField
                 control={form.control}
-                name="price"
+                name="description"
                 render={({ field }) => (
                   <FormItem>
+                    <FormLabel className="text-xs">Descrição do serviço *</FormLabel>
                     <FormControl>
                       <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="Valor (R$)"
+                        placeholder="Ex: Troca de tela"
                         {...field}
-                        className="h-8 text-sm"
+                        className="h-9 text-sm"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="equipment"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Equipamento</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Ex: iPhone 15 Pro"
+                        {...field}
+                        className="h-9 text-sm"
                       />
                     </FormControl>
                   </FormItem>
                 )}
               />
+            </div>
+
+            {/* Seção: Diagnóstico */}
+            <div className="space-y-3 pt-1 border-t">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-3">
+                Diagnóstico
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="reportedIssue"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Defeito relatado</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="O que o cliente relatou"
+                          {...field}
+                          className="h-9 text-sm"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="diagnosis"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Diagnóstico técnico</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="O que foi identificado"
+                          {...field}
+                          className="h-9 text-sm"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
               <FormField
                 control={form.control}
-                name="dueDate"
+                name="technicianName"
                 render={({ field }) => (
                   <FormItem>
+                    <FormLabel className="text-xs">Técnico responsável</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} className="h-8 text-sm" />
+                      <Input
+                        placeholder="Nome do técnico"
+                        {...field}
+                        className="h-9 text-sm"
+                      />
                     </FormControl>
                   </FormItem>
                 )}
               />
             </div>
-            <div className="flex gap-2 pt-1">
+
+            {/* Seção: Valores e prazo */}
+            <div className="space-y-3 pt-1 border-t">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-3">
+                Valores e prazo
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Valor (R$)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0,00"
+                          {...field}
+                          className="h-9 text-sm"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="dueDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">Prazo de entrega</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} className="h-9 text-sm" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-1">
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="h-7 text-xs"
                 onClick={() => setShowNew(false)}
               >
                 Cancelar
               </Button>
-              <Button
-                type="submit"
-                size="sm"
-                className="h-7 text-xs"
-                disabled={createMutation.isPending}
-              >
-                {createMutation.isPending ? "Salvando..." : "Criar"}
+              <Button type="submit" size="sm" disabled={createMutation.isPending}>
+                {createMutation.isPending ? "Salvando..." : "Criar ordem de serviço"}
               </Button>
             </div>
           </form>
