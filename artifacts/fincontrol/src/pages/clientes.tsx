@@ -63,6 +63,10 @@ type Order = {
   notes?: string;
   price?: number | null;
   dueDate?: string | null;
+  equipment?: string | null;
+  reportedIssue?: string | null;
+  diagnosis?: string | null;
+  technicianName?: string | null;
   createdAt: string;
 };
 
@@ -101,6 +105,10 @@ const orderSchema = z.object({
   notes: z.string().optional(),
   price: z.string().optional(),
   dueDate: z.string().optional(),
+  equipment: z.string().optional(),
+  reportedIssue: z.string().optional(),
+  diagnosis: z.string().optional(),
+  technicianName: z.string().optional(),
 });
 
 // ── API ──────────────────────────────────────────────
@@ -200,44 +208,60 @@ function sendWhatsApp(phone: string, clientName: string, orderDesc: string) {
   window.open(`https://wa.me/${number}?text=${msg}`, "_blank");
 }
 
-function exportPDF(client: Client, order: Order) {
+function exportServiceOrder(client: Client, order: Order) {
   const html = `
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Pedido #${order.id}</title>
+      <title>Ordem de Serviço #${order.id}</title>
       <style>
-        body { font-family: Arial, sans-serif; padding: 40px; color: #1a1a1a; }
+        body { font-family: Arial, sans-serif; padding: 40px; color: #1a1a1a; position: relative; }
         h1 { color: #2d6a4f; font-size: 24px; margin-bottom: 4px; }
         .subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
-        .section { margin-bottom: 24px; }
+        .section-title { font-size: 13px; font-weight: bold; color: #2d6a4f; text-transform: uppercase; margin: 24px 0 8px; border-bottom: 1px solid #d8f3dc; padding-bottom: 4px; }
         .label { font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 4px; }
-        .value { font-size: 15px; color: #1a1a1a; }
-        .row { display: flex; gap: 40px; margin-bottom: 16px; }
+        .value { font-size: 14px; color: #1a1a1a; margin-bottom: 12px; white-space: pre-wrap; }
+        .row { display: flex; gap: 40px; }
+        .row > div { flex: 1; }
         .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; background: #d8f3dc; color: #1b4332; }
-        .divider { border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }
-        .footer { margin-top: 48px; font-size: 12px; color: #999; text-align: center; }
+        .divider { border: none; border-top: 1px solid #e5e7eb; margin: 20px 0; }
         .price { font-size: 22px; font-weight: bold; color: #2d6a4f; }
+        .signatures { display: flex; gap: 40px; margin-top: 64px; }
+        .sig-box { flex: 1; text-align: center; }
+        .sig-line { border-top: 1px solid #333; margin-top: 48px; padding-top: 6px; font-size: 12px; color: #555; }
+        .footer { margin-top: 40px; font-size: 11px; color: #999; text-align: center; }
+        .os-number { position: absolute; top: 40px; right: 40px; text-align: right; }
       </style>
     </head>
     <body>
+      <div class="os-number">
+        <div class="label">Ordem de Serviço</div>
+        <div style="font-size:20px; font-weight:bold;">#${String(order.id).padStart(5, "0")}</div>
+      </div>
       <h1>FinControl</h1>
-      <div class="subtitle">Comprovante de Pedido #${order.id}</div>
-      <hr class="divider">
-      <div class="section">
-        <div class="label">Cliente</div>
-        <div class="value">${client.name}</div>
+      <div class="subtitle">Ordem de Serviço</div>
+
+      <div class="section-title">Cliente</div>
+      <div class="row">
+        <div>
+          <div class="label">Nome</div>
+          <div class="value">${client.name}</div>
+        </div>
+        ${client.phone ? `<div><div class="label">Telefone</div><div class="value">${client.phone}</div></div>` : ""}
       </div>
       <div class="row">
-        ${client.phone ? `<div><div class="label">Telefone</div><div class="value">${client.phone}</div></div>` : ""}
         ${client.email ? `<div><div class="label">E-mail</div><div class="value">${client.email}</div></div>` : ""}
+        ${client.address ? `<div><div class="label">Endereço</div><div class="value">${client.address}</div></div>` : ""}
       </div>
-      ${client.address ? `<div class="section"><div class="label">Endereço</div><div class="value">${client.address}</div></div>` : ""}
-      <hr class="divider">
-      <div class="section">
-        <div class="label">Serviço</div>
-        <div class="value">${order.description}</div>
-      </div>
+
+      <div class="section-title">Serviço</div>
+      <div class="label">Descrição</div>
+      <div class="value">${order.description}</div>
+      ${order.equipment ? `<div class="label">Equipamento</div><div class="value">${order.equipment}</div>` : ""}
+      ${order.reportedIssue ? `<div class="label">Defeito relatado pelo cliente</div><div class="value">${order.reportedIssue}</div>` : ""}
+      ${order.diagnosis ? `<div class="label">Diagnóstico técnico</div><div class="value">${order.diagnosis}</div>` : ""}
+
+      <div class="section-title">Status e valores</div>
       <div class="row">
         <div>
           <div class="label">Status</div>
@@ -246,12 +270,22 @@ function exportPDF(client: Client, order: Order) {
         ${order.dueDate ? `<div><div class="label">Prazo de entrega</div><div class="value">${new Date(order.dueDate).toLocaleDateString("pt-BR")}</div></div>` : ""}
         ${order.price ? `<div><div class="label">Valor</div><div class="price">R$ ${order.price.toFixed(2)}</div></div>` : ""}
       </div>
-      ${order.notes ? `<div class="section"><div class="label">Observações</div><div class="value">${order.notes}</div></div>` : ""}
-      <hr class="divider">
-      <div class="section">
-        <div class="label">Data do pedido</div>
-        <div class="value">${new Date(order.createdAt).toLocaleDateString("pt-BR")}</div>
+      ${order.technicianName ? `<div class="label">Técnico responsável</div><div class="value">${order.technicianName}</div>` : ""}
+      ${order.notes ? `<div class="label">Observações</div><div class="value">${order.notes}</div>` : ""}
+
+      <div class="divider"></div>
+      <div class="label">Data de abertura</div>
+      <div class="value">${new Date(order.createdAt).toLocaleDateString("pt-BR")}</div>
+
+      <div class="signatures">
+        <div class="sig-box">
+          <div class="sig-line">Assinatura do cliente</div>
+        </div>
+        <div class="sig-box">
+          <div class="sig-line">Assinatura do técnico responsável</div>
+        </div>
       </div>
+
       <div class="footer">Gerado pelo FinControl</div>
     </body>
     </html>
@@ -280,7 +314,7 @@ function ClientOrders({ client }: { client: Client }) {
       createOrder(client.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders", client.id] });
-      toast({ title: "Pedido criado com sucesso!" });
+      toast({ title: "Ordem de serviço criada com sucesso!" });
       setShowNew(false);
       form.reset();
     },
@@ -304,7 +338,16 @@ function ClientOrders({ client }: { client: Client }) {
 
   const form = useForm<z.infer<typeof orderSchema>>({
     resolver: zodResolver(orderSchema),
-    defaultValues: { description: "", notes: "", price: "", dueDate: "" },
+    defaultValues: {
+      description: "",
+      notes: "",
+      price: "",
+      dueDate: "",
+      equipment: "",
+      reportedIssue: "",
+      diagnosis: "",
+      technicianName: "",
+    },
   });
 
   const STATUS_FLOW = ["pending", "in_progress", "done", "delivered"];
@@ -322,7 +365,7 @@ function ClientOrders({ client }: { client: Client }) {
           size="sm"
           onClick={() => setShowNew(!showNew)}
         >
-          <Plus className="h-3.5 w-3.5 mr-1.5" /> Novo pedido
+          <Plus className="h-3.5 w-3.5 mr-1.5" /> Nova ordem de serviço
         </Button>
       </div>
 
@@ -345,6 +388,66 @@ function ClientOrders({ client }: { client: Client }) {
                     />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="equipment"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input
+                      placeholder="Equipamento (ex: iPhone 15 Pro)"
+                      {...field}
+                      className="h-8 text-sm"
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="reportedIssue"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input
+                      placeholder="Defeito relatado pelo cliente"
+                      {...field}
+                      className="h-8 text-sm"
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="diagnosis"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input
+                      placeholder="Diagnóstico técnico"
+                      {...field}
+                      className="h-8 text-sm"
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="technicianName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input
+                      placeholder="Técnico responsável"
+                      {...field}
+                      className="h-8 text-sm"
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />
@@ -458,8 +561,8 @@ function ClientOrders({ client }: { client: Client }) {
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7"
-                  title="Exportar PDF"
-                  onClick={() => exportPDF(client, order)}
+                  title="Gerar Ordem de Serviço"
+                  onClick={() => exportServiceOrder(client, order)}
                 >
                   <FileText className="h-3.5 w-3.5" />
                 </Button>
