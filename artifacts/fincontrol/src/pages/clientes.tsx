@@ -43,6 +43,8 @@ import {
   Search,
   X,
   MessageCircle,
+  Store,
+  Check,
 } from "lucide-react";
 
 type Client = {
@@ -88,6 +90,17 @@ const STATUS_LABELS: Record<string, { label: string; badge: string }> = {
     badge: "bg-gray-500/10 text-gray-700 border-gray-300 dark:text-gray-400",
   },
 };
+
+const BUSINESS_NAME_KEY = "fincontrol_business_name";
+
+function getBusinessName(): string {
+  if (typeof window === "undefined") return "FinControl";
+  return localStorage.getItem(BUSINESS_NAME_KEY) || "FinControl";
+}
+
+function setBusinessName(name: string) {
+  localStorage.setItem(BUSINESS_NAME_KEY, name);
+}
 
 const clientSchema = z.object({
   name: z.string().min(1, "Nome obrigatório"),
@@ -208,7 +221,7 @@ function sendWhatsApp(phone: string, clientName: string, orderDesc: string) {
   window.open(`https://wa.me/${number}?text=${msg}`, "_blank");
 }
 
-function exportServiceOrder(client: Client, order: Order) {
+function exportServiceOrder(client: Client, order: Order, businessName: string) {
   const html = `
     <html>
     <head>
@@ -238,7 +251,7 @@ function exportServiceOrder(client: Client, order: Order) {
         <div class="label">Ordem de Serviço</div>
         <div style="font-size:20px; font-weight:bold;">#${String(order.id).padStart(5, "0")}</div>
       </div>
-      <h1>FinControl</h1>
+      <h1>${businessName}</h1>
       <div class="subtitle">Ordem de Serviço</div>
 
       <div class="section-title">Cliente</div>
@@ -286,7 +299,7 @@ function exportServiceOrder(client: Client, order: Order) {
         </div>
       </div>
 
-      <div class="footer">Gerado pelo FinControl</div>
+      <div class="footer">Gerado por ${businessName}</div>
     </body>
     </html>
   `;
@@ -299,7 +312,13 @@ function exportServiceOrder(client: Client, order: Order) {
 }
 
 // ── Pedidos por cliente ──────────────────────────────
-function ClientOrders({ client }: { client: Client }) {
+function ClientOrders({
+  client,
+  businessName,
+}: {
+  client: Client;
+  businessName: string;
+}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showNew, setShowNew] = useState(false);
@@ -586,7 +605,7 @@ function ClientOrders({ client }: { client: Client }) {
                   size="icon"
                   className="h-7 w-7"
                   title="Gerar Ordem de Serviço"
-                  onClick={() => exportServiceOrder(client, order)}
+                  onClick={() => exportServiceOrder(client, order, businessName)}
                 >
                   <FileText className="h-3.5 w-3.5" />
                 </Button>
@@ -629,6 +648,18 @@ export default function Clientes() {
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const [businessName, setBusinessNameState] = useState(() => getBusinessName());
+  const [editingBusinessName, setEditingBusinessName] = useState(false);
+  const [businessNameDraft, setBusinessNameDraft] = useState(businessName);
+
+  const saveBusinessName = () => {
+    const trimmed = businessNameDraft.trim() || "FinControl";
+    setBusinessName(trimmed);
+    setBusinessNameState(trimmed);
+    setEditingBusinessName(false);
+    toast({ title: "Nome da loja atualizado." });
+  };
 
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ["clients"],
@@ -725,6 +756,66 @@ export default function Clientes() {
           <Plus className="h-4 w-4 mr-2" /> Novo cliente
         </Button>
       </div>
+
+      {/* Nome da loja/empresa (usado na Ordem de Serviço) */}
+      <Card className="shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center bg-primary/10">
+              <Store className="h-4 w-4 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">
+                Nome da loja/empresa
+              </p>
+              {editingBusinessName ? (
+                <div className="flex items-center gap-2 mt-1">
+                  <Input
+                    value={businessNameDraft}
+                    onChange={(e) => setBusinessNameDraft(e.target.value)}
+                    placeholder="Ex: Assistência Silva"
+                    className="h-8 text-sm max-w-xs"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveBusinessName();
+                      if (e.key === "Escape") {
+                        setBusinessNameDraft(businessName);
+                        setEditingBusinessName(false);
+                      }
+                    }}
+                  />
+                  <Button size="sm" className="h-8" onClick={saveBusinessName}>
+                    <Check className="h-3.5 w-3.5 mr-1" /> Salvar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8"
+                    onClick={() => {
+                      setBusinessNameDraft(businessName);
+                      setEditingBusinessName(false);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <p className="font-medium">{businessName}</p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setEditingBusinessName(true)}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="shadow-sm">
@@ -895,7 +986,9 @@ export default function Clientes() {
                       </Button>
                     </div>
                   </div>
-                  {expandedId === c.id && <ClientOrders client={c} />}
+                  {expandedId === c.id && (
+                    <ClientOrders client={c} businessName={businessName} />
+                  )}
                 </div>
               ))}
             </div>
